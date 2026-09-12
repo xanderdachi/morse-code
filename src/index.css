@@ -1,0 +1,111 @@
+@import "tailwindcss";
+
+/*
+  Morse Club theme — the single place to retheme the app.
+  Every token below becomes a Tailwind utility: --color-primary → bg-primary,
+  --radius-card → rounded-card, --shadow-button → shadow-button, --font-serif → font-serif.
+*/
+@theme {
+  /* Surfaces and text */
+  --color-paper: #fff3e2;
+  --color-paper-2: #ffe7c9;
+  --color-card: #ffffff;
+  --color-ink: #3b2214;
+  --color-ink-soft: #8a6a55;
+  --color-edge: rgb(59 34 20 / 0.12);
+  --color-scrim: rgb(24 14 8 / 0.42);
+  --color-glyph: #ffffff; /* dot and dash shapes printed on the keys */
+
+  /* Brand colours, each with the text colour that sits on top of it */
+  --color-primary: #ff9f1c; /* dots, the key cap, current letter, primary buttons */
+  --color-on-primary: #3b2214;
+  --color-secondary: #12a594; /* dashes, progress, "extra" characters */
+  --color-on-secondary: #3b2214;
+  --color-accent: #ff5d5d; /* send button, signal lamp, "wrong" characters */
+  --color-on-accent: #3b2214;
+
+  /* Pip the pigeon */
+  --color-pip-body: #9db3d0;
+  --color-pip-wing: #7e97b8;
+  --color-pip-head: #b8c9e2;
+  --color-pip-eye: #2b2f36;
+
+  /* Type */
+  --font-ui: "Baloo 2", system-ui, sans-serif;
+  --font-serif: "Lora", Georgia, serif;
+  --font-mono: "DM Mono", ui-monospace, monospace;
+
+  /* Radii, largest to smallest */
+  --radius-modal: 38px;
+  --radius-card: 30px;
+  --radius-pad: 28px;
+  --radius-panel: 24px;
+  --radius-box: 22px;
+  --radius-tile: 20px;
+  --radius-bubble: 18px;
+  --radius-logo: 14px;
+  --radius-chip: 9px;
+  --radius-mark: 6px;
+
+  /* Chunky offset shadows */
+  --shadow-card: 0 12px 0 rgb(59 34 20 / 0.1);
+  --shadow-button: 0 7px 0 rgb(59 34 20 / 0.22);
+  --shadow-key-down: 0 2px 0 rgb(0 0 0 / 0.18);
+  --shadow-cap: inset 0 -6px 0 rgb(0 0 0 / 0.13), 0 4px 0 rgb(0 0 0 / 0.1);
+  --shadow-cap-down: inset 0 4px 10px rgb(0 0 0 / 0.22);
+  --shadow-well: inset 0 3px 0 rgb(0 0 0 / 0.07);
+  --shadow-lamp-off: inset 0 3px 0 rgb(0 0 0 / 0.08);
+  --shadow-lamp-on: 0 0 0 7px color-mix(in oklab, var(--color-accent) 26%, transparent), 0 0 22px var(--color-accent);
+  --shadow-cursor: 0 0 0 3px color-mix(in oklab, var(--color-primary) 28%, transparent);
+  --shadow-stamp: 0 10px 0 rgb(0 0 0 / 0.14), inset 0 0 0 5px rgb(255 255 255 / 0.5);
+  --shadow-modal: 0 30px 70px rgb(20 10 4 / 0.3);
+
+  /* Ambient motion (durations and delays are overridden per element) */
+  --animate-bob: bob 4.2s ease-in-out infinite;
+  --animate-caret: caret 1s ease-in-out infinite;
+  --animate-drift: drift 20s ease-in-out infinite;
+  --animate-drift-alt: drift-alt 20s ease-in-out infinite;
+  --animate-confetti: confetti 2s linear both;
+
+  @keyframes bob {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-7px) rotate(2deg); }
+  }
+  @keyframes caret {
+    0%, 100% { opacity: 0.45; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.12); }
+  }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(26px, -22px); }
+  }
+  @keyframes drift-alt {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-34px, 18px); }
+  }
+  @keyframes confetti {
+    0% { transform: translateY(-20px) rotate(0); opacity: 1; }
+    100% { transform: translateY(560px) rotate(720deg); opacity: 0; }
+  }
+}
+
+@layer base {
+  body {
+    background: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-ui);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility eyebrow {
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--color-ink-soft);
+}

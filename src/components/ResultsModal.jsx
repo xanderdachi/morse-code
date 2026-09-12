@@ -1,0 +1,183 @@
+import { motion } from 'framer-motion'
+import { useId } from 'react'
+import { INPUT_MODES } from '../hooks/useMorseInput.js'
+import { formatClock } from '../lib/format.js'
+import Modal from './Modal.jsx'
+
+// Keyed on rounded accuracy percentage, best first.
+const RATINGS = [
+  { min: 98, grade: 'A+', headline: 'Clean signal.', stamp: 'bg-secondary text-on-secondary' },
+  { min: 93, grade: 'A', headline: 'Barely a crackle.', stamp: 'bg-secondary text-on-secondary' },
+  { min: 85, grade: 'B', headline: 'Readable, mostly.', stamp: 'bg-primary text-on-primary' },
+  { min: 75, grade: 'C', headline: 'Static on the line.', stamp: 'bg-accent text-on-accent' },
+  { min: 0, grade: 'D', headline: 'The wire got confused.', stamp: 'bg-accent text-on-accent' },
+]
+
+const CONFETTI_FROM = 85
+
+const CELL_STYLES = {
+  correct: 'bg-card',
+  wrong: 'bg-accent text-on-accent',
+  extra: 'bg-secondary text-on-secondary',
+  missed: 'border-2 border-dashed border-ink-soft',
+}
+
+export default function ResultsModal({ open, onClose, result, passage, passageNumber, onNext, onRetry }) {
+  const titleId = useId()
+
+  return (
+    <Modal open={open} onClose={onClose} width={720} labelledBy={titleId}>
+      {result && (
+        <Results
+          titleId={titleId}
+          result={result}
+          passage={passage}
+          passageNumber={passageNumber}
+          onNext={onNext}
+          onRetry={onRetry}
+        />
+      )}
+    </Modal>
+  )
+}
+
+function Results({ titleId, result, passage, passageNumber, onNext, onRetry }) {
+  const percent = Math.round(result.accuracy * 100)
+  const rating = RATINGS.find(r => percent >= r.min)
+  const { counts } = result
+
+  return (
+    <div className="flex flex-col gap-[18px]">
+      {percent >= CONFETTI_FROM && <Confetti />}
+
+      <div className="relative z-2 flex flex-wrap items-start gap-[18px]">
+        <div className="min-w-0 flex-[1_1_240px]">
+          <div className="text-[11px] font-bold uppercase tracking-[.12em] text-ink-soft">Transmission complete</div>
+          <h2 id={titleId} className="mt-1.5 text-[32px] font-extrabold leading-[1.05]">
+            {rating.headline}
+          </h2>
+          <p className="mt-2 text-[14.5px] font-medium leading-[1.45] text-ink-soft">
+            Passage {passageNumber} · {passage.title} · {INPUT_MODES[result.mode]}
+          </p>
+        </div>
+        <motion.div
+          className={`flex size-[118px] flex-none flex-col items-center justify-center gap-[2px] rounded-full shadow-stamp ${rating.stamp}`}
+          initial={{ rotate: -24, scale: 2.6, opacity: 0 }}
+          animate={{ rotate: [-24, 8, -6, -9], scale: [2.6, 0.88, 1.06, 1], opacity: [0, 1, 1, 1] }}
+          transition={{ duration: 0.55, times: [0, 0.55, 0.75, 1], ease: [0.2, 1.4, 0.4, 1] }}
+        >
+          <span className="text-[44px] font-extrabold leading-none">{rating.grade}</span>
+          <span className="text-[9.5px] font-bold tracking-[.22em]">GRADE</span>
+        </motion.div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <BigStat label="Accuracy" value={`${percent}%`} />
+        <BigStat label="Words / min" value={Math.round(result.wpm)} />
+        <BigStat label="Time" value={formatClock(result.elapsedMs)} />
+      </div>
+
+      <div className="rounded-panel border-2 border-edge bg-card px-5 py-[18px]">
+        <div className="eyebrow mb-2">What you just sent</div>
+        <p className="font-serif text-[19px] leading-[1.45] text-pretty">{passage.text}</p>
+        <p className="mt-2.5 font-serif text-[13.5px] font-medium leading-normal text-ink-soft">{passage.blurb}</p>
+        <p className="mt-2 text-[12.5px] font-semibold text-ink-soft">
+          {passage.title} · {passage.author} · {passage.culture}, {passage.era}
+        </p>
+      </div>
+
+      <div className="rounded-panel bg-paper-2 px-5 py-[18px]">
+        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2.5">
+          <div className="eyebrow mr-auto">Character review</div>
+          <Legend swatch="bg-accent">wrong</Legend>
+          <Legend swatch="border-2 border-dashed border-ink-soft">missed</Legend>
+          <Legend swatch="bg-secondary">extra</Legend>
+        </div>
+        <p className="sr-only">
+          You sent “{result.sent}”: {counts.correct} correct, {counts.wrong} wrong, {counts.missed} missed, {counts.extra}{' '}
+          extra.
+        </p>
+        <div aria-hidden="true" className="flex flex-wrap gap-1">
+          {result.chars.map((cell, i) => (
+            <span
+              key={i}
+              title={cellTitle(cell)}
+              className={`flex min-w-[19px] flex-col items-center gap-[2px] rounded-chip px-[3px] py-[5px] ${CELL_STYLES[cell.kind]}`}
+            >
+              <span className="font-serif text-[17px] leading-none">{cell.expected === ' ' ? '·' : (cell.expected ?? '·')}</span>
+              <span className="font-mono text-[10.5px] font-medium leading-none opacity-80">
+                {cell.actual === ' ' ? '·' : (cell.actual ?? '—')}
+              </span>
+            </span>
+          ))}
+        </div>
+        <div className="mt-2.5 text-[12px] font-medium text-ink-soft">
+          Top row: the passage. Bottom row: what came down the wire.
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2.5">
+        <button
+          type="button"
+          onClick={onNext}
+          className="rounded-full bg-secondary px-[22px] py-[14px] text-[15px] font-bold text-on-secondary shadow-button active:translate-y-[5px] active:shadow-none"
+        >
+          Next passage
+        </button>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-full border-2 border-edge bg-transparent px-5 py-[13px] text-[14.5px] font-bold text-ink"
+        >
+          Send it again
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function BigStat({ label, value }) {
+  return (
+    <div className="flex-[1_1_130px] rounded-box bg-paper-2 px-4 py-3.5">
+      <div className="eyebrow">{label}</div>
+      <div className="text-[30px] font-extrabold leading-[1.1] tabular-nums">{value}</div>
+    </div>
+  )
+}
+
+function Legend({ swatch, children }) {
+  return (
+    <span className="flex items-center gap-1.5 text-[12px] font-semibold text-ink-soft">
+      <span className={`size-3 rounded-[4px] ${swatch}`} />
+      {children}
+    </span>
+  )
+}
+
+function cellTitle({ kind, expected, actual }) {
+  const show = char => (char === ' ' ? 'space' : char)
+  if (kind === 'missed') return `missed ${show(expected)}`
+  if (kind === 'extra') return `extra ${show(actual)}`
+  if (kind === 'wrong') return `expected ${show(expected)}, sent ${show(actual)}`
+  return show(expected)
+}
+
+const CONFETTI_COLORS = ['bg-primary', 'bg-accent', 'bg-secondary']
+
+function Confetti() {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] motion-reduce:hidden">
+      {Array.from({ length: 28 }, (_, i) => (
+        <span
+          key={i}
+          className={`absolute -top-6 h-[11px] rounded-full animate-confetti ${CONFETTI_COLORS[i % 3]} ${i % 3 === 1 ? 'w-[26px]' : 'w-[11px]'}`}
+          style={{
+            left: `${3 + ((i * 3.4) % 94)}%`,
+            animationDuration: `${1.7 + (i % 5) * 0.35}s`,
+            animationDelay: `${(i % 7) * 0.13}s`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}

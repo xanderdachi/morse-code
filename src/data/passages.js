@@ -1,0 +1,78 @@
+// Short public-domain and oral-tradition passages, shortest first.
+
+export const passages = [
+  {
+    id: 'hamlet',
+    title: 'Hamlet',
+    author: 'William Shakespeare',
+    culture: 'England',
+    era: 'c. 1600',
+    blurb: 'Hamlet weighs his own existence in the third act. The line has outlived every stage it was written for.',
+    text: 'To be, or not to be.',
+  },
+  {
+    id: 'one-hand',
+    title: 'Zen koan',
+    author: 'Hakuin Ekaku',
+    culture: 'Japan',
+    era: 'c. 1750',
+    blurb: 'Hakuin set this koan as a first gate for his students: a question built to defeat answering.',
+    text: 'What is the sound of one hand?',
+  },
+  {
+    id: 'petit-a-petit',
+    title: 'French proverb',
+    author: 'Oral tradition',
+    culture: 'France',
+    era: 'traditional',
+    blurb: 'Little by little, the bird builds its nest. Said to anyone learning something slowly, which today includes you.',
+    text: 'Petit à petit, l’oiseau fait son nid.',
+  },
+  {
+    id: 'old-pond',
+    title: 'Frog haiku',
+    author: 'Matsuo Basho',
+    culture: 'Japan',
+    era: '1686',
+    blurb: 'Basho gives you a pond, a frog and then the sound of water. The sound is the whole poem.',
+    text: 'An old pond. A frog jumps in. The sound of water.',
+  },
+  {
+    id: 'hope',
+    title: '“Hope” is the thing with feathers',
+    author: 'Emily Dickinson',
+    culture: 'United States',
+    era: 'c. 1861',
+    blurb:
+      'Dickinson sewed her poems into small handmade booklets and published almost none of them. This one reached print in 1891, five years after her death.',
+    text: '“Hope” is the thing with feathers that perches in the soul',
+  },
+  {
+    id: 'baobab',
+    title: 'Ghanaian proverb',
+    author: 'Oral tradition',
+    culture: 'Ghana',
+    era: 'traditional',
+    blurb: 'Still spoken in Ghana. Knowledge is simply wider than one pair of arms.',
+    text: 'Wisdom is like a baobab tree; no one person can embrace it.',
+  },
+  {
+    id: 'certain-kingdom',
+    title: 'Folk tale opening',
+    author: 'Oral tradition',
+    culture: 'Russia',
+    era: 'traditional',
+    blurb: 'The formula that opens hundreds of Russian folk tales, the way once upon a time opens English ones.',
+    text: 'In a certain kingdom, in a certain land, there lived a Tsar.',
+  },
+  {
+    id: 'analects',
+    title: 'The Analects',
+    author: 'Confucius',
+    culture: 'China',
+    era: 'c. 500 BCE',
+    blurb:
+      'The first line of the Analects, in James Legge’s 1861 translation. A whole book of teaching opens by asking whether learning is its own reward.',
+    text: 'Is it not pleasant to learn with a constant perseverance and application?',
+  },
+]

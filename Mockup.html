@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./mockup.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Lora:ital,wght@0,400;0,500;1,400&family=Fredoka:wght@500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&family=Quicksand:wght@500;600;700&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#FFF3E2;-webkit-font-smoothing:antialiased;
+    --paper:#FFF3E2;--paper2:#FFE7C9;--ink:#3B2214;--ink-soft:#8A6A55;--card:#FFFFFF;
+    --c1:#FF9F1C;--c2:#FF5D5D;--c3:#12A594;--edge:rgba(59,34,20,.12);
+    --on1:#3B2214;--on2:#3B2214;--on3:#3B2214;
+    --shadow:0 12px 0 rgba(59,34,20,.10);--btn-shadow:0 7px 0 rgba(59,34,20,.22);
+    --radius:30px;--hair:2px;--ui:'Baloo 2',system-ui,sans-serif;--serif:'Lora',Georgia,serif;
+    --stage-dir:column;--p-order:1;--i-order:2;--p-basis:1 1 auto;--i-basis:1 1 auto;--p-fs:31px;
+    --bg-dots:block;--bg-blobs:none;--bg-cut:none;--grain:none;--key-size:186px;
+    --dock-bg:transparent;--dock-pad:0px;--frame-w:min(1120px,100%);--frame-bw:0px;--frame-r:0px;--notch:none;--app-pad:26px}
+  a{color:var(--c3);text-decoration-thickness:2px}
+  a:hover{color:var(--c2)}
+  input,button,textarea{font-family:inherit}
+  @keyframes mcBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-7px) rotate(2deg)}}
+  @keyframes mcDrift{0%{transform:translate(0,0)}50%{transform:translate(26px,-22px)}100%{transform:translate(0,0)}}
+  @keyframes mcDrift2{0%{transform:translate(0,0)}50%{transform:translate(-34px,18px)}100%{transform:translate(0,0)}}
+  @keyframes mcFloat{0%{transform:translateX(-6%)}100%{transform:translateX(6%)}}
+  @keyframes mcSpin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+  @keyframes mcPulse{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.12)}}
+  @keyframes mcPop{0%{transform:scale(.2);opacity:0}60%{transform:scale(1.18)}100%{transform:scale(1);opacity:1}}
+  @keyframes mcCard{0%{transform:translateY(26px) scale(.94);opacity:0}70%{transform:translateY(0) scale(1.01)}100%{transform:translateY(0) scale(1);opacity:1}}
+  @keyframes mcStamp{0%{transform:rotate(-24deg) scale(2.6);opacity:0}55%{transform:rotate(8deg) scale(.88);opacity:1}75%{transform:rotate(-6deg) scale(1.06)}100%{transform:rotate(-9deg) scale(1);opacity:1}}
+  @keyframes mcConf{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(560px) rotate(720deg);opacity:0}}
+  @keyframes mcRing{0%{transform:scale(.9);opacity:.9}100%{transform:scale(1.7);opacity:0}}
+</style>
+</helmet>
+<div style="{{ vars }}">
+<div style="min-height:100vh;position:relative;overflow-x:hidden;background:var(--paper);background-image:var(--grain);color:var(--ink);font-family:var(--ui)">
+
+  <div aria-hidden="true" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:0;opacity:var(--bg-op,1)">
+    <div style="display:var(--bg-dots)">
+      <div style="position:absolute;top:12%;left:6%;width:26px;height:26px;border-radius:50%;background:var(--c1);opacity:.28;animation:mcDrift 17s ease-in-out infinite"></div>
+      <div style="position:absolute;top:26%;left:16%;width:74px;height:24px;border-radius:999px;background:var(--c3);opacity:.2;animation:mcDrift2 23s ease-in-out infinite"></div>
+      <div style="position:absolute;top:64%;left:9%;width:18px;height:18px;border-radius:50%;background:var(--c2);opacity:.3;animation:mcDrift 19s ease-in-out infinite 2s"></div>
+      <div style="position:absolute;top:78%;left:22%;width:58px;height:20px;border-radius:999px;background:var(--c1);opacity:.22;animation:mcDrift2 27s ease-in-out infinite 1s"></div>
+      <div style="position:absolute;top:16%;right:8%;width:90px;height:28px;border-radius:999px;background:var(--c2);opacity:.18;animation:mcDrift 25s ease-in-out infinite"></div>
+      <div style="position:absolute;top:40%;right:15%;width:22px;height:22px;border-radius:50%;background:var(--c3);opacity:.3;animation:mcDrift2 21s ease-in-out infinite 3s"></div>
+      <div style="position:absolute;top:58%;right:6%;width:34px;height:34px;border-radius:50%;background:var(--c1);opacity:.22;animation:mcDrift 29s ease-in-out infinite 1.5s"></div>
+      <div style="position:absolute;top:86%;right:20%;width:66px;height:22px;border-radius:999px;background:var(--c3);opacity:.2;animation:mcDrift2 24s ease-in-out infinite 2.5s"></div>
+      <div style="position:absolute;top:4%;left:44%;width:16px;height:16px;border-radius:50%;background:var(--c2);opacity:.25;animation:mcDrift 31s ease-in-out infinite"></div>
+      <div style="position:absolute;bottom:3%;left:52%;width:48px;height:18px;border-radius:999px;background:var(--c1);opacity:.2;animation:mcDrift2 33s ease-in-out infinite 4s"></div>
+    </div>
+    <div style="display:var(--bg-blobs)">
+      <div style="position:absolute;top:-6%;left:-4%;width:420px;height:300px;border-radius:52% 48% 60% 40%/60% 55% 45% 40%;background:var(--c1);opacity:.16;animation:mcFloat 38s ease-in-out infinite alternate"></div>
+      <div style="position:absolute;top:22%;right:-8%;width:480px;height:340px;border-radius:44% 56% 40% 60%/52% 42% 58% 48%;background:var(--c3);opacity:.15;animation:mcFloat 52s ease-in-out infinite alternate-reverse"></div>
+      <div style="position:absolute;bottom:-12%;left:18%;width:560px;height:320px;border-radius:60% 40% 52% 48%/48% 58% 42% 52%;background:var(--c2);opacity:.13;animation:mcFloat 64s ease-in-out infinite alternate"></div>
+      <div style="position:absolute;top:48%;left:34%;width:260px;height:180px;border-radius:50%;background:var(--c1);opacity:.1;animation:mcFloat 44s ease-in-out infinite alternate-reverse"></div>
+      <div style="position:absolute;top:8%;left:40%;width:200px;height:140px;border-radius:56% 44% 48% 52%/52% 48% 52% 48%;background:var(--c3);opacity:.12;animation:mcFloat 58s ease-in-out infinite alternate"></div>
+    </div>
+    <div style="display:var(--bg-cut)">
+      <div style="position:absolute;top:8%;left:5%;width:150px;height:150px;border-radius:22px;background:var(--c2);opacity:.16;animation:mcSpin 90s linear infinite"></div>
+      <div style="position:absolute;top:56%;left:2%;width:190px;height:190px;border-radius:50% 6% 50% 6%;background:var(--c3);opacity:.15;animation:mcSpin 140s linear infinite reverse"></div>
+      <div style="position:absolute;top:14%;right:4%;width:170px;height:170px;border-radius:50% 50% 6% 50%;background:var(--c1);opacity:.14;animation:mcSpin 120s linear infinite"></div>
+      <div style="position:absolute;bottom:6%;right:10%;width:130px;height:130px;border-radius:16px;background:var(--c2);opacity:.14;animation:mcSpin 100s linear infinite reverse"></div>
+      <div style="position:absolute;top:44%;right:26%;width:96px;height:96px;border-radius:50%;background:var(--c3);opacity:.12;animation:mcSpin 80s linear infinite"></div>
+      <div style="position:absolute;bottom:24%;left:30%;width:120px;height:120px;border-radius:6% 50% 6% 50%;background:var(--c1);opacity:.12;animation:mcSpin 160s linear infinite reverse"></div>
+    </div>
+  </div>
+
+  <div style="position:sticky;top:0;z-index:40;display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 16px;background:#16161a;color:#fff;font:500 12px/1.2 ui-sans-serif,system-ui,sans-serif">
+    <span style="font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.55;font-size:10.5px">Direction</span>
+    <div style="display:flex;gap:6px">
+      <sc-for list="{{ directions }}" as="d" hint-placeholder-count="3">
+        <button type="button" onClick="{{ d.pick }}" style="{{ d.pillStyle }}">
+          <span style="{{ d.sw1 }}"></span><span style="{{ d.sw2 }}"></span><span style="{{ d.sw3 }}"></span>
+          <span>{{ d.label }}</span>
+        </button>
+      </sc-for>
+    </div>
+    <span style="flex:1 1 auto;min-width:8px"></span>
+    <span style="opacity:.62;font:400 11.5px/1.4 ui-monospace,Menlo,monospace">{{ dirMeta }}</span>
+    <div style="display:flex;gap:6px">
+      <button type="button" onClick="{{ setDesktop }}" style="{{ desktopStyle }}">Desktop</button>
+      <button type="button" onClick="{{ setMobile }}" style="{{ mobileStyle }}">Mobile</button>
+    </div>
+  </div>
+
+  <div style="position:relative;z-index:1;display:flex;justify-content:center;padding:22px 14px 40px">
+    <div style="width:var(--frame-w);max-width:100%;border:var(--frame-bw) solid #1b1b1f;border-radius:var(--frame-r);background:var(--paper);box-shadow:var(--frame-shadow,none);overflow:hidden">
+      <div style="display:var(--notch);align-items:center;justify-content:space-between;padding:9px 26px 3px;font:600 12px var(--ui);color:var(--ink)">
+        <span>9:41</span>
+        <span style="width:64px;height:19px;border-radius:999px;background:#1b1b1f"></span>
+        <span style="letter-spacing:.06em">100%</span>
+      </div>
+
+      <div style="padding:var(--app-pad);display:flex;flex-direction:column;gap:18px">
+
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;margin-right:auto">
+            <span style="display:grid;place-items:center;width:40px;height:40px;border-radius:14px;background:var(--c1);box-shadow:var(--btn-shadow);font-weight:800;font-size:17px;color:var(--on1);transform:rotate(-4deg)">··</span>
+            <span style="font:800 24px/1 var(--ui);letter-spacing:-.01em">Morse Club</span>
+          </div>
+          <button type="button" onClick="{{ openLevels }}" style="display:flex;align-items:center;gap:8px;background:var(--c3);color:var(--on3);border:none;border-radius:999px;padding:9px 16px;font:700 13.5px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(4px);box-shadow:none">
+            <span style="opacity:.75;font-size:11px;letter-spacing:.1em">LVL {{ level.n }}</span>
+            <span>{{ level.name }}</span>
+          </button>
+          <button type="button" onClick="{{ openBoard }}" style="background:var(--card);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:999px;padding:9px 15px;font:700 13.5px var(--ui);cursor:pointer;box-shadow:var(--shadow)" style-active="transform:translateY(4px);box-shadow:none">Chart</button>
+          <button type="button" onClick="{{ openRef }}" style="background:var(--card);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:999px;padding:9px 15px;font:700 13.5px var(--ui);cursor:pointer;box-shadow:var(--shadow)" style-active="transform:translateY(4px);box-shadow:none">Code</button>
+          <button type="button" onClick="{{ openSettings }}" style="background:var(--card);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:999px;padding:9px 15px;font:700 13.5px var(--ui);cursor:pointer;box-shadow:var(--shadow)" style-active="transform:translateY(4px);box-shadow:none">Setup</button>
+          <button type="button" onClick="{{ openAbout }}" style="background:var(--card);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:999px;width:40px;height:40px;font:700 15px var(--ui);cursor:pointer;box-shadow:var(--shadow)" style-active="transform:translateY(4px);box-shadow:none">?</button>
+        </div>
+
+        <div style="display:flex;flex-direction:var(--stage-dir);gap:18px;align-items:stretch">
+
+          <div style="order:var(--p-order);flex:var(--p-basis);min-width:0;display:flex;flex-direction:column;gap:14px">
+            <div style="background:var(--card);border:var(--hair) solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px 24px 20px;min-width:0">
+              <div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:14px">
+                <span style="background:var(--paper2);border-radius:999px;padding:5px 11px;font:700 11px var(--ui);letter-spacing:.09em;text-transform:uppercase;color:var(--ink)">{{ level.culture }}</span>
+                <span style="font:600 12.5px var(--ui);color:var(--ink-soft)">{{ level.era }}</span>
+              </div>
+              <p style="margin:0;font-family:var(--serif);font-size:var(--p-fs);line-height:1.46;letter-spacing:-.005em;text-wrap:pretty;display:flex;flex-wrap:wrap;gap:0 .34em">
+                <sc-for list="{{ words }}" as="w" hint-placeholder-count="8">
+                  <span style="white-space:nowrap">
+                    <sc-for list="{{ w.chars }}" as="c" hint-placeholder-count="4"><span style="{{ c.style }}">{{ c.ch }}</span></sc-for>
+                  </span>
+                </sc-for>
+              </p>
+              <div style="display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:16px;padding-top:14px;border-top:var(--hair) dashed var(--edge);font:500 13px var(--serif);color:var(--ink-soft)">
+                <span style="font-family:var(--serif);font-style:italic;font-size:14.5px;color:var(--ink)">{{ level.title }}</span>
+                <span>·</span><span>{{ level.author }}</span>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:10px">
+              <div style="flex:1 1 120px;background:var(--card);border:var(--hair) solid var(--edge);border-radius:20px;padding:11px 14px;box-shadow:var(--shadow)">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Time</div>
+                <div style="font:800 21px/1.2 var(--ui);font-variant-numeric:tabular-nums">{{ timeLabel }}</div>
+              </div>
+              <div style="flex:1 1 120px;background:var(--card);border:var(--hair) solid var(--edge);border-radius:20px;padding:11px 14px;box-shadow:var(--shadow)">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Pace</div>
+                <div style="font:800 21px/1.2 var(--ui);font-variant-numeric:tabular-nums">{{ wpmLabel }}</div>
+              </div>
+              <div style="flex:2 1 200px;background:var(--card);border:var(--hair) solid var(--edge);border-radius:20px;padding:11px 14px;box-shadow:var(--shadow)">
+                <div style="display:flex;justify-content:space-between;font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">
+                  <span>Sent</span><span>{{ progressLabel }}</span>
+                </div>
+                <div style="margin-top:7px;height:12px;border-radius:999px;background:var(--paper2);overflow:hidden">
+                  <div style="{{ progressStyle }}"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="order:var(--i-order);flex:var(--i-basis);min-width:0;background:var(--dock-bg);border-radius:var(--radius);padding:var(--dock-pad);display:flex;flex-direction:column;gap:14px">
+
+            <div style="background:var(--card);border:var(--hair) solid var(--edge);border-radius:22px;box-shadow:var(--shadow);padding:13px 16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">
+                <span>Transmission</span>
+                <span>{{ tapeHint }}</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:10px;min-height:34px;overflow:hidden">
+                <sc-for list="{{ tape }}" as="t" hint-placeholder-count="6"><span style="{{ t.style }}"></span></sc-for>
+                <span style="{{ caretStyle }}"></span>
+              </div>
+            </div>
+
+            <div style="background:var(--card);border:var(--hair) solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px 18px 20px;display:flex;flex-direction:column;align-items:center;gap:14px">
+
+              <div style="display:flex;align-items:center;gap:9px;background:var(--paper2);border-radius:999px;padding:5px;box-shadow:inset 0 3px 0 rgba(0,0,0,.07)">
+                <button type="button" onClick="{{ pickKey }}" style="{{ keyTabStyle }}">Straight key</button>
+                <button type="button" onClick="{{ pickPad }}" style="{{ padTabStyle }}">Dot / dash pad</button>
+              </div>
+
+              <div style="display:flex;align-items:center;gap:10px">
+                <span style="{{ lampStyle }}"></span>
+                <span style="font:700 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)">{{ lampLabel }}</span>
+              </div>
+
+              <sc-if value="{{ isKeyMode }}" hint-placeholder-val="{{ true }}">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+                  <button type="button" onMouseDown="{{ keyDown }}" onMouseUp="{{ keyUp }}" onMouseLeave="{{ keyUp }}" onTouchStart="{{ keyDown }}" onTouchEnd="{{ keyUp }}" style="{{ straightKeyStyle }}">
+                    <span style="{{ keyCapStyle }}">
+                      <span style="{{ keyGlyphStyle }}"></span>
+                    </span>
+                  </button>
+                  <div style="font:600 12.5px var(--ui);color:var(--ink-soft);text-align:center;max-width:260px;text-wrap:pretty">Short press makes a dot, long press makes a dash. Pause to end a letter.</div>
+                </div>
+              </sc-if>
+
+              <sc-if value="{{ isPadMode }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%">
+                  <div style="display:flex;gap:14px;justify-content:center;width:100%">
+                    <button type="button" onClick="{{ tapDot }}" style="flex:1 1 0;min-width:0;height:var(--key-size);max-height:170px;border:none;border-radius:28px;background:var(--c1);box-shadow:var(--btn-shadow);cursor:pointer;display:grid;place-items:center" style-active="transform:translateY(6px);box-shadow:none">
+                      <span style="display:block;width:34px;height:34px;border-radius:50%;background:#fff"></span>
+                    </button>
+                    <button type="button" onClick="{{ tapDash }}" style="flex:1 1 0;min-width:0;height:var(--key-size);max-height:170px;border:none;border-radius:28px;background:var(--c3);box-shadow:var(--btn-shadow);cursor:pointer;display:grid;place-items:center" style-active="transform:translateY(6px);box-shadow:none">
+                      <span style="display:block;width:70px;height:34px;border-radius:999px;background:#fff"></span>
+                    </button>
+                  </div>
+                  <div style="display:flex;gap:10px;align-items:center">
+                    <button type="button" onClick="{{ tapSpace }}" style="background:var(--paper2);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:999px;padding:9px 18px;font:700 13px var(--ui);cursor:pointer" style-active="transform:translateY(3px)">space</button>
+                    <span style="font:600 12.5px var(--ui);color:var(--ink-soft)">or just pause between letters</span>
+                  </div>
+                </div>
+              </sc-if>
+
+              <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;width:100%">
+                <button type="button" onClick="{{ finishNow }}" style="flex:1 1 130px;background:var(--c2);color:var(--on2);border:none;border-radius:999px;padding:13px 20px;font:800 15px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(5px);box-shadow:none">Send it</button>
+                <button type="button" onClick="{{ resetRun }}" style="background:transparent;color:var(--ink-soft);border:var(--hair) solid var(--edge);border-radius:999px;padding:13px 18px;font:700 14px var(--ui);cursor:pointer" style-active="transform:translateY(3px)">Start over</button>
+              </div>
+            </div>
+
+            <div style="display:flex;align-items:flex-end;gap:12px;padding:0 4px">
+              <div style="position:relative;width:78px;height:70px;flex:none;animation:mcBob 4.2s ease-in-out infinite">
+                <span style="position:absolute;left:8px;top:26px;width:58px;height:40px;border-radius:50% 46% 44% 52%;background:#9DB3D0"></span>
+                <span style="position:absolute;left:2px;top:36px;width:30px;height:22px;border-radius:50% 8% 50% 50%;background:#7E97B8"></span>
+                <span style="position:absolute;left:44px;top:10px;width:30px;height:30px;border-radius:50%;background:#B8C9E2"></span>
+                <span style="position:absolute;left:70px;top:22px;width:0;height:0;border-left:11px solid var(--c1);border-top:6px solid transparent;border-bottom:6px solid transparent"></span>
+                <span style="position:absolute;left:62px;top:19px;width:5px;height:5px;border-radius:50%;background:#2B2F36"></span>
+                <span style="position:absolute;left:42px;top:34px;width:26px;height:9px;border-radius:999px;background:var(--c2)"></span>
+              </div>
+              <div style="{{ bubbleStyle }}">{{ pigeonLine }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:center;font:500 11.5px var(--ui);color:var(--ink-soft);letter-spacing:.02em">{{ kbHint }}</div>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ anyModal }}" hint-placeholder-val="{{ false }}">
+    <div style="position:fixed;inset:0;z-index:60;background:rgba(24,14,8,.42);backdrop-filter:blur(7px);-webkit-backdrop-filter:blur(7px);display:flex;align-items:flex-start;justify-content:center;padding:34px 16px;overflow:auto">
+      <div style="{{ modalCardStyle }}">
+        <button type="button" onClick="{{ closeModal }}" style="position:absolute;top:16px;right:16px;width:38px;height:38px;border-radius:50%;border:none;background:var(--paper2);color:var(--ink);font:700 16px var(--ui);cursor:pointer;z-index:3" style-active="transform:translateY(3px)">×</button>
+
+        <sc-if value="{{ mWelcome }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <div style="display:flex;align-items:center;gap:14px">
+              <div style="position:relative;width:78px;height:70px;flex:none;animation:mcBob 4.2s ease-in-out infinite">
+                <span style="position:absolute;left:8px;top:26px;width:58px;height:40px;border-radius:50% 46% 44% 52%;background:#9DB3D0"></span>
+                <span style="position:absolute;left:44px;top:10px;width:30px;height:30px;border-radius:50%;background:#B8C9E2"></span>
+                <span style="position:absolute;left:70px;top:22px;width:0;height:0;border-left:11px solid var(--c1);border-top:6px solid transparent;border-bottom:6px solid transparent"></span>
+                <span style="position:absolute;left:62px;top:19px;width:5px;height:5px;border-radius:50%;background:#2B2F36"></span>
+                <span style="position:absolute;left:42px;top:34px;width:26px;height:9px;border-radius:999px;background:var(--c2)"></span>
+              </div>
+              <div>
+                <h2 style="margin:0;font:800 30px/1.1 var(--ui)">Tap out literature.</h2>
+                <p style="margin:6px 0 0;font:500 15px/1.4 var(--ui);color:var(--ink-soft)">Ten seconds of setup, then you are an operator.</p>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px">
+              <div style="flex:1 1 170px;background:var(--paper2);border-radius:22px;padding:16px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><span style="width:14px;height:14px;border-radius:50%;background:var(--c1)"></span><span style="width:38px;height:14px;border-radius:999px;background:var(--c3)"></span></div>
+                <div style="font:700 15px var(--ui)">Dot, then dash</div>
+                <div style="font:500 13.5px/1.4 var(--ui);color:var(--ink-soft)">Short tap is a dot. Long hold is a dash.</div>
+              </div>
+              <div style="flex:1 1 170px;background:var(--paper2);border-radius:22px;padding:16px">
+                <div style="font:800 16px var(--ui);color:var(--c2);margin-bottom:6px">Pause = letter</div>
+                <div style="font:700 15px var(--ui)">Stop to commit</div>
+                <div style="font:500 13.5px/1.4 var(--ui);color:var(--ink-soft)">A short rest ends a letter. A longer rest ends a word.</div>
+              </div>
+              <div style="flex:1 1 170px;background:var(--paper2);border-radius:22px;padding:16px">
+                <div style="font:800 16px var(--ui);color:var(--c3);margin-bottom:6px">No red ink</div>
+                <div style="font:700 15px var(--ui)">Mistakes wait</div>
+                <div style="font:500 13.5px/1.4 var(--ui);color:var(--ink-soft)">Nothing is marked while you send. Grading comes after.</div>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button type="button" onClick="{{ closeModal }}" style="background:var(--c1);color:var(--on1);border:none;border-radius:999px;padding:15px 26px;font:800 17px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(5px);box-shadow:none">Start on level 1</button>
+              <button type="button" onClick="{{ openRef }}" style="background:transparent;border:var(--hair) solid var(--edge);border-radius:999px;padding:14px 20px;font:700 14.5px var(--ui);color:var(--ink);cursor:pointer">See the code chart</button>
+              <span style="font:500 12.5px var(--ui);color:var(--ink-soft)">No account, ever.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mResults }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <sc-if value="{{ confetti }}" hint-placeholder-val="{{ false }}">
+              <div aria-hidden="true" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:inherit">
+                <sc-for list="{{ confettiPieces }}" as="p" hint-placeholder-count="0"><span style="{{ p.style }}"></span></sc-for>
+              </div>
+            </sc-if>
+            <div style="display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start;position:relative;z-index:2">
+              <div style="flex:1 1 240px;min-width:0">
+                <div style="font:700 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft)">Transmission complete</div>
+                <h2 style="margin:6px 0 0;font:800 32px/1.05 var(--ui)">{{ result.headline }}</h2>
+                <p style="margin:8px 0 0;font:500 14.5px/1.45 var(--ui);color:var(--ink-soft)">Level {{ level.n }} · {{ level.name }} · {{ result.modeLabel }}</p>
+              </div>
+              <div style="{{ result.stampStyle }}">
+                <span style="font:800 44px/1 var(--ui)">{{ result.grade }}</span>
+                <span style="font:700 9.5px var(--ui);letter-spacing:.22em">GRADE</span>
+              </div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:12px">
+              <div style="flex:1 1 130px;background:var(--paper2);border-radius:22px;padding:14px 16px">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Accuracy</div>
+                <div style="font:800 30px/1.1 var(--ui);font-variant-numeric:tabular-nums">{{ result.accLabel }}</div>
+              </div>
+              <div style="flex:1 1 130px;background:var(--paper2);border-radius:22px;padding:14px 16px">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Words / min</div>
+                <div style="font:800 30px/1.1 var(--ui);font-variant-numeric:tabular-nums">{{ result.wpm }}</div>
+              </div>
+              <div style="flex:1 1 130px;background:var(--paper2);border-radius:22px;padding:14px 16px">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Time</div>
+                <div style="font:800 30px/1.1 var(--ui);font-variant-numeric:tabular-nums">{{ result.timeLabel }}</div>
+              </div>
+            </div>
+            <div style="background:var(--card);border:var(--hair) solid var(--edge);border-radius:24px;padding:18px 20px">
+              <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-bottom:8px">What you just sent</div>
+              <p style="margin:0;font-family:var(--serif);font-size:19px;line-height:1.45;text-wrap:pretty">{{ level.text }}</p>
+              <p style="margin:10px 0 0;font:500 13.5px/1.5 var(--serif);color:var(--ink-soft)">{{ level.note }}</p>
+              <p style="margin:8px 0 0;font:600 12.5px var(--ui);color:var(--ink-soft)">{{ level.title }} · {{ level.author }} · {{ level.culture }}, {{ level.era }}</p>
+            </div>
+            <div style="background:var(--paper2);border-radius:24px;padding:18px 20px">
+              <div style="display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin-bottom:12px">
+                <div style="font:700 10.5px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);margin-right:auto">Character review</div>
+                <span style="display:flex;align-items:center;gap:6px;font:600 12px var(--ui);color:var(--ink-soft)"><span style="width:12px;height:12px;border-radius:4px;background:var(--c2)"></span>wrong</span>
+                <span style="display:flex;align-items:center;gap:6px;font:600 12px var(--ui);color:var(--ink-soft)"><span style="width:12px;height:12px;border-radius:4px;border:2px dashed var(--ink-soft)"></span>missed</span>
+                <span style="display:flex;align-items:center;gap:6px;font:600 12px var(--ui);color:var(--ink-soft)"><span style="width:12px;height:12px;border-radius:4px;background:var(--c3)"></span>extra</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px">
+                <sc-for list="{{ result.diff }}" as="d" hint-placeholder-count="0">
+                  <span style="{{ d.wrapStyle }}">
+                    <span style="{{ d.topStyle }}">{{ d.top }}</span>
+                    <span style="{{ d.botStyle }}">{{ d.bot }}</span>
+                  </span>
+                </sc-for>
+              </div>
+              <div style="margin-top:10px;font:500 12px var(--ui);color:var(--ink-soft)">Top row: the passage. Bottom row: what came down the wire.</div>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+              <button type="button" onClick="{{ openSubmit }}" style="background:var(--c1);color:var(--on1);border:none;border-radius:999px;padding:14px 24px;font:800 16px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(5px);box-shadow:none">Add this run to the weekly chart</button>
+              <button type="button" onClick="{{ nextLevel }}" style="background:var(--c3);color:var(--on3);border:none;border-radius:999px;padding:14px 22px;font:700 15px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(5px);box-shadow:none">{{ result.nextLabel }}</button>
+              <button type="button" onClick="{{ retryLevel }}" style="background:transparent;border:var(--hair) solid var(--edge);border-radius:999px;padding:13px 20px;font:700 14.5px var(--ui);color:var(--ink);cursor:pointer">Send it again</button>
+              <span style="font:500 12.5px var(--ui);color:var(--ink-soft)">Sharing is optional.</span>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mSubmit }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div>
+              <h2 style="margin:0;font:800 28px/1.1 var(--ui)">Put it on the chart?</h2>
+              <p style="margin:8px 0 0;font:500 14.5px/1.45 var(--ui);color:var(--ink-soft)">One name. That is the whole form. No email, no password, nothing to remember.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;background:var(--paper2);border-radius:22px;padding:14px 16px;font:600 13.5px var(--ui)">
+              <span>{{ result.accLabel }} accuracy</span><span style="color:var(--ink-soft)">·</span>
+              <span>{{ result.wpm }} wpm</span><span style="color:var(--ink-soft)">·</span>
+              <span>Level {{ level.n }}</span><span style="color:var(--ink-soft)">·</span>
+              <span>{{ result.modeLabel }}</span>
+            </div>
+            <label style="display:flex;flex-direction:column;gap:8px">
+              <span style="font:700 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Display name</span>
+              <input type="text" value="{{ name }}" onChange="{{ onName }}" placeholder="Night Operator" maxlength="18" style="border:var(--hair) solid var(--edge);border-radius:18px;padding:14px 16px;font:600 17px var(--ui);background:var(--card);color:var(--ink);outline:none" style-focus="border-color:var(--c1)"/>
+            </label>
+            <div style="display:flex;gap:10px;align-items:flex-start;background:var(--card);border:var(--hair) dashed var(--edge);border-radius:20px;padding:14px 16px">
+              <span style="width:10px;height:10px;border-radius:50%;background:var(--c2);margin-top:5px;flex:none"></span>
+              <p style="margin:0;font:500 13.5px/1.45 var(--ui);color:var(--ink-soft)">This run becomes public on the weekly chart, name included. Skipping is completely fine — your progress and levels are saved either way.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">
+              <button type="button" onClick="{{ submitScore }}" style="background:var(--c1);color:var(--on1);border:none;border-radius:999px;padding:14px 26px;font:800 16px var(--ui);cursor:pointer;box-shadow:var(--btn-shadow)" style-active="transform:translateY(5px);box-shadow:none">Post it</button>
+              <button type="button" onClick="{{ closeModal }}" style="background:transparent;border:var(--hair) solid var(--edge);border-radius:999px;padding:13px 22px;font:700 14.5px var(--ui);color:var(--ink);cursor:pointer">No thanks</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mBoard }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:baseline">
+              <h2 style="margin:0;font:800 28px/1.1 var(--ui);margin-right:auto">This week on the wire</h2>
+              <span style="background:var(--paper2);border-radius:999px;padding:7px 13px;font:700 12px var(--ui);color:var(--ink-soft);margin-right:46px">resets in {{ countdown }}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:7px">
+              <div style="display:grid;grid-template-columns:34px 1fr 68px 62px 46px 62px;gap:8px;padding:0 12px;font:700 10px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">
+                <span>#</span><span>Operator</span><span>Accuracy</span><span>WPM</span><span>Lvl</span><span>Input</span>
+              </div>
+              <sc-for list="{{ board }}" as="r" hint-placeholder-count="6">
+                <div style="{{ r.rowStyle }}">
+                  <span style="font:800 15px var(--ui);color:var(--ink-soft)">{{ r.rank }}</span>
+                  <span style="font:700 15px var(--ui);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ r.name }}</span>
+                  <span style="font:700 15px var(--ui);font-variant-numeric:tabular-nums">{{ r.acc }}</span>
+                  <span style="font:700 15px var(--ui);font-variant-numeric:tabular-nums">{{ r.wpm }}</span>
+                  <span style="font:700 15px var(--ui)">{{ r.lvl }}</span>
+                  <span style="{{ r.modeStyle }}">{{ r.mode }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <p style="margin:0;font:500 13px/1.45 var(--ui);color:var(--ink-soft)">Straight key and pad runs are listed side by side with their input mode, so a forgiving pad run never reads as a key run.</p>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mLevels }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <div>
+              <h2 style="margin:0;font:800 28px/1.1 var(--ui)">Pick your passage</h2>
+              <p style="margin:8px 0 0;font:500 14.5px/1.45 var(--ui);color:var(--ink-soft)">Finish a level to open the next one. Passages get longer, not louder.</p>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start;justify-content:center">
+              <sc-for list="{{ levels }}" as="l" hint-placeholder-count="6">
+                <div style="{{ l.slotStyle }}">
+                  <button type="button" onClick="{{ l.pick }}" style="{{ l.nodeStyle }}">
+                    <span style="font:800 26px/1 var(--ui)">{{ l.n }}</span>
+                    <span style="font:700 10px var(--ui);letter-spacing:.08em;text-transform:uppercase;opacity:.85">{{ l.tag }}</span>
+                  </button>
+                  <div style="text-align:center;max-width:140px">
+                    <div style="font:700 14px var(--ui)">{{ l.name }}</div>
+                    <div style="font:500 12px/1.35 var(--ui);color:var(--ink-soft)">{{ l.sub }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mRef }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div>
+              <h2 style="margin:0;font:800 28px/1.1 var(--ui)">The whole alphabet</h2>
+              <p style="margin:8px 0 0;font:500 14.5px/1.45 var(--ui);color:var(--ink-soft)">Circle is a dot, bar is a dash. Keep this open while you learn — nobody is timing your reading.</p>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px">
+              <sc-for list="{{ chart }}" as="c" hint-placeholder-count="12">
+                <div style="background:var(--paper2);border-radius:18px;padding:11px 12px;display:flex;flex-direction:column;gap:9px">
+                  <span style="font:800 21px/1 var(--ui)">{{ c.ch }}</span>
+                  <span style="display:flex;align-items:center;gap:5px;min-height:14px">
+                    <sc-for list="{{ c.cells }}" as="s" hint-placeholder-count="3"><span style="{{ s.style }}"></span></sc-for>
+                  </span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mSettings }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:18px">
+            <h2 style="margin:0;font:800 28px/1.1 var(--ui)">Settings</h2>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font:700 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Input mode</span>
+              <div style="display:flex;align-items:center;gap:9px;background:var(--paper2);border-radius:999px;padding:5px;align-self:flex-start;box-shadow:inset 0 3px 0 rgba(0,0,0,.07)">
+                <button type="button" onClick="{{ pickKey }}" style="{{ keyTabStyle }}">Straight key</button>
+                <button type="button" onClick="{{ pickPad }}" style="{{ padTabStyle }}">Dot / dash pad</button>
+              </div>
+            </div>
+            <label style="display:flex;flex-direction:column;gap:7px">
+              <span style="font:700 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Dot / dash threshold — {{ dotMax }} ms</span>
+              <input type="range" min="90" max="400" step="10" value="{{ dotMax }}" onChange="{{ onDotMax }}" style="accent-color:var(--c1)"/>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:7px">
+              <span style="font:700 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Pause that ends a letter — {{ letterGap }} ms</span>
+              <input type="range" min="350" max="1600" step="50" value="{{ letterGap }}" onChange="{{ onLetterGap }}" style="accent-color:var(--c3)"/>
+            </label>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">
+              <button type="button" onClick="{{ toggleSound }}" style="{{ soundStyle }}">{{ soundLabel }}</button>
+              <button type="button" onClick="{{ toggleMotion }}" style="{{ motionStyle }}">{{ motionLabel }}</button>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <span style="font:700 11px var(--ui);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft)">Look and feel</span>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">
+                <sc-for list="{{ directions }}" as="d" hint-placeholder-count="3">
+                  <button type="button" onClick="{{ d.pick }}" style="{{ d.appStyle }}">{{ d.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+            <button type="button" onClick="{{ resetProgress }}" style="align-self:flex-start;background:transparent;border:var(--hair) solid var(--edge);border-radius:999px;padding:12px 20px;font:700 14px var(--ui);color:var(--ink-soft);cursor:pointer">Clear my progress</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ mAbout }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:16px">
+            <div style="display:flex;align-items:flex-end;gap:14px">
+              <div style="position:relative;width:104px;height:92px;flex:none;animation:mcBob 4.2s ease-in-out infinite">
+                <span style="position:absolute;left:10px;top:34px;width:78px;height:52px;border-radius:50% 46% 44% 52%;background:#9DB3D0"></span>
+                <span style="position:absolute;left:2px;top:48px;width:40px;height:28px;border-radius:50% 8% 50% 50%;background:#7E97B8"></span>
+                <span style="position:absolute;left:58px;top:12px;width:40px;height:40px;border-radius:50%;background:#B8C9E2"></span>
+                <span style="position:absolute;left:94px;top:28px;width:0;height:0;border-left:14px solid var(--c1);border-top:8px solid transparent;border-bottom:8px solid transparent"></span>
+                <span style="position:absolute;left:83px;top:24px;width:6px;height:6px;border-radius:50%;background:#2B2F36"></span>
+                <span style="position:absolute;left:56px;top:44px;width:34px;height:11px;border-radius:999px;background:var(--c2)"></span>
+              </div>
+              <div>
+                <h2 style="margin:0;font:800 28px/1.1 var(--ui)">About Morse Club</h2>
+                <p style="margin:6px 0 0;font:500 14.5px/1.45 var(--ui);color:var(--ink-soft)">Pip carries your transmissions. He has opinions about your timing.</p>
+              </div>
+            </div>
+            <p style="margin:0;font:500 15px/1.55 var(--ui)">A typing trainer where the drill is real writing. Every level is a passage that someone thought worth keeping — a line of Hamlet, a koan, a proverb from Ghana, the opening formula of a Russian tale. You send it in Morse, and you get it back graded.</p>
+            <p style="margin:0;font:500 15px/1.55 var(--ui)">Nothing is marked wrong while you are sending. Operators do not get corrected mid-message, and neither do you.</p>
+            <div style="background:var(--paper2);border-radius:22px;padding:16px 18px;font:600 14px/1.5 var(--ui)">No accounts. No sign-up. Progress lives in this browser, and the weekly chart only ever gets a run you explicitly post.</div>
+            <p style="margin:0;font:500 13px/1.5 var(--ui);color:var(--ink-soft)">All passages are in the public domain or oral tradition. Attribution is shown with each one.</p>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;direction&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;mango&quot;,&quot;harbor&quot;,&quot;papercut&quot;],&quot;default&quot;:&quot;mango&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Direction&quot;}}">
+class Component extends DCLogic {
+  MORSE = {A:'.-',B:'-...',C:'-.-.',D:'-..',E:'.',F:'..-.',G:'--.',H:'....',I:'..',J:'.---',K:'-.-',L:'.-..',M:'--',N:'-.',O:'---',P:'.--.',Q:'--.-',R:'.-.',S:'...',T:'-',U:'..-',V:'...-',W:'.--',X:'-..-',Y:'-.--',Z:'--..','0':'-----','1':'.----','2':'..---','3':'...--','4':'....-','5':'.....','6':'-....','7':'--...','8':'---..','9':'----.'};
+
+  LEVELS = [
+    {n:1,name:'First Sparks',tag:'start',text:'To be, or not to be.',title:'Hamlet',author:'William Shakespeare',culture:'England',era:'1603',note:'Hamlet weighs his own existence in the third act. The line has outlived every stage it was written for.'},
+    {n:2,name:'Dot Runner',tag:'easy',text:'What is the sound of one hand?',title:'Zen koan',author:'Hakuin Ekaku',culture:'Japan',era:'c. 1750',note:'Hakuin set this koan as a first gate for his students: a question built to defeat answering.'},
+    {n:3,name:'Pond Relay',tag:'steady',text:'An old silent pond, a frog jumps in.',title:'Frog haiku',author:'Matsuo Basho',culture:'Japan',era:'1686',note:'Basho gives you a pond, a frog and then the sound of water. The sound is the whole poem.'},
+    {n:4,name:'Night Operator',tag:'hard',text:'The wound is the place where the light enters you.',title:'Attributed verse',author:'Rumi',culture:'Persia',era:'13th century',note:'Carried into English by many hands from the poet of Konya, and quoted more often than it is sourced.'},
+    {n:5,name:'Long Wire',tag:'harder',text:'Wisdom is like a baobab tree; no one person can embrace it.',title:'Akan proverb',author:'Oral tradition',culture:'Ghana',era:'traditional',note:'Still spoken in Ghana. Knowledge is simply wider than one pair of arms.'},
+    {n:6,name:'Key Master',tag:'expert',text:'In a certain kingdom, in a certain land, there lived a Tsar.',title:'Russian Fairy Tales',author:'coll. A. Afanasyev',culture:'Russia',era:'1855',note:'The formula that opens hundreds of Russian tales, written down by Alexander Afanasyev in the 1850s.'}
+  ];
+
+  THEMES = {
+    mango:{label:'Mango Post',meta:'Mango / Coral / Teal on cream · Baloo 2 + Lora',sw:['#FF9F1C','#FF5D5D','#12A594'],vars:{}},
+    harbor:{label:'Harbor',meta:'Cobalt / Butter / Mint on ice · Fredoka + Newsreader',sw:['#2E59CE','#FFC94A','#2FC49E'],vars:{
+      '--paper':'#EAF2FC','--paper2':'#DAE7F9','--ink':'#12233C','--ink-soft':'#5C7695','--card':'#FFFFFF',
+      '--c1':'#2E59CE','--c2':'#FFB020','--c3':'#1FB894','--edge':'rgba(18,35,60,.12)',
+      '--on1':'#FFFFFF','--on2':'#12233C','--on3':'#12233C',
+      '--shadow':'0 14px 0 rgba(18,35,60,.10)','--btn-shadow':'0 8px 0 rgba(18,35,60,.28)',
+      '--radius':'26px','--ui':"'Fredoka',system-ui,sans-serif",'--serif':"'Newsreader',Georgia,serif",
+      '--bg-dots':'none','--bg-blobs':'block','--p-fs':'26px','--key-size':'196px'}},
+    papercut:{label:'Paper Cut',meta:'Terracotta / Olive / Ochre on oat · Quicksand + EB Garamond',sw:['#D9663F','#7EA268','#E3A93F'],vars:{
+      '--paper':'#F4EBDB','--paper2':'#E9DCC4','--ink':'#2E2A25','--ink-soft':'#7C7263','--card':'#FFFDF7',
+      '--c1':'#D9663F','--c2':'#B7523A','--c3':'#7EA268','--edge':'rgba(46,42,37,.18)',
+      '--on1':'#2E2A25','--on2':'#FFFFFF','--on3':'#2E2A25',
+      '--shadow':'7px 7px 0 rgba(46,42,37,.14)','--btn-shadow':'6px 6px 0 rgba(46,42,37,.30)',
+      '--radius':'16px','--hair':'2px','--ui':"'Quicksand',system-ui,sans-serif",'--serif':"'EB Garamond',Georgia,serif",
+      '--bg-dots':'none','--bg-cut':'block','--p-fs':'34px','--key-size':'166px',
+      '--grain':'radial-gradient(rgba(46,42,37,.055) 1px, transparent 1px)','--grain-size':'7px 7px',
+      '--dock-bg':'rgba(46,42,37,.05)','--dock-pad':'14px'}}
+  };
+
+  SEED = [
+    {name:'wirewalker',acc:99,wpm:14,lvl:6,mode:'KEY'},
+    {name:'Pip fan club',acc:98,wpm:11,lvl:5,mode:'KEY'},
+    {name:'dotty',acc:97,wpm:19,lvl:4,mode:'PAD'},
+    {name:'Signal Hill',acc:95,wpm:16,lvl:6,mode:'PAD'},
+    {name:'longwave',acc:94,wpm:9,lvl:3,mode:'KEY'},
+    {name:'anon operator',acc:91,wpm:13,lvl:4,mode:'PAD'},
+    {name:'Basho stan',acc:88,wpm:12,lvl:3,mode:'KEY'},
+    {name:'newkey',acc:82,wpm:8,lvl:2,mode:'PAD'}
+  ];
+
+  state = {theme:'mango',view:'desktop',mode:'key',modal:'welcome',levelIdx:0,unlocked:3,
+    sent:'',tape:[],buf:[],down:false,lamp:false,running:false,startedAt:0,now:0,
+    result:null,confetti:false,name:'',board:this.SEED.slice(),
+    dotMax:180,letterGap:750,sound:true,motion:true,mood:'idle'};
+
+  componentDidMount(){
+    try{
+      const g=k=>localStorage.getItem(k);
+      const st={};
+      if(g('mc.mode')) st.mode=g('mc.mode');
+      if(g('mc.theme')&&this.THEMES[g('mc.theme')]) st.theme=g('mc.theme');
+      if(g('mc.unlocked')) st.unlocked=Math.max(3,parseInt(g('mc.unlocked'),10)||3);
+      if(g('mc.name')) st.name=g('mc.name');
+      if(g('mc.seen')) st.modal=null;
+      if(g('mc.board')){try{const b=JSON.parse(g('mc.board'));if(Array.isArray(b)&&b.length)st.board=b;}catch(e){}}
+      if(Object.keys(st).length) this.setState(st);
+    }catch(e){}
+    if(this.props.direction&&this.THEMES[this.props.direction]) this.setState({theme:this.props.direction});
+    this.tick=setInterval(()=>{if(this.state.running)this.setState({now:Date.now()});},100);
+    this.onKD=e=>{
+      if(this.state.modal) return;
+      if(this.state.mode==='key'&&e.code==='Space'){e.preventDefault();this.press();}
+      if(this.state.mode==='pad'){if(e.key==='z'||e.key==='Z'){e.preventDefault();this.sym('.');}if(e.key==='x'||e.key==='X'){e.preventDefault();this.sym('-');}}
+    };
+    this.onKU=e=>{if(this.state.mode==='key'&&e.code==='Space'&&this.state.down){e.preventDefault();this.release();}};
+    window.addEventListener('keydown',this.onKD);
+    window.addEventListener('keyup',this.onKU);
+  }
+  componentWillUnmount(){clearInterval(this.tick);clearTimeout(this.gapT);clearTimeout(this.wordT);clearTimeout(this.lampT);window.removeEventListener('keydown',this.onKD);window.removeEventListener('keyup',this.onKU);}
+
+  save(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  beep(dur){
+    if(!this.state.sound) return;
+    try{
+      this.ac=this.ac||new (window.AudioContext||window.webkitAudioContext)();
+      const o=this.ac.createOscillator(),g=this.ac.createGain();
+      o.type='sine';o.frequency.value=620;g.gain.value=.09;o.connect(g);g.connect(this.ac.destination);
+      const t=this.ac.currentTime;o.start(t);g.gain.setTargetAtTime(0,t+dur/1000,.02);o.stop(t+dur/1000+.12);
+    }catch(e){}
+  }
+
+  target(){return this.LEVELS[this.state.levelIdx].text.toUpperCase().replace(/[^A-Z0-9 ]/g,'').replace(/\s+/g,' ').trim();}
+
+  press(){
+    if(this.state.down) return;
+    this.pressAt=Date.now();
+    clearTimeout(this.gapT);clearTimeout(this.wordT);
+    this.setState(s=>({down:true,lamp:true,running:s.running||true,startedAt:s.startedAt||Date.now()}));
+  }
+  release(){
+    if(!this.state.down) return;
+    const d=Date.now()-this.pressAt;
+    this.setState({down:false,lamp:false});
+    this.beep(Math.min(d,420));
+    this.sym(d<this.state.dotMax?'.':'-');
+  }
+  sym(s){
+    if(this.state.result&&this.state.modal) return;
+    clearTimeout(this.gapT);clearTimeout(this.wordT);
+    if(s!=='.'&&s!=='-') return;
+    if(this.state.mode==='pad'){this.beep(s==='.'?70:200);this.flash();}
+    this.setState(st=>({buf:st.buf.concat(s),running:true,startedAt:st.startedAt||Date.now(),mood:'busy'}));
+    this.gapT=setTimeout(()=>this.commit(),this.state.letterGap);
+  }
+  flash(){clearTimeout(this.lampT);this.setState({lamp:true});this.lampT=setTimeout(()=>this.setState({lamp:false}),130);}
+  commit(){
+    const buf=this.state.buf.join('');
+    if(!buf) return;
+    let ch='#';
+    for(const k in this.MORSE){if(this.MORSE[k]===buf){ch=k;break;}}
+    const sent=this.state.sent+ch;
+    this.setState({buf:[],sent:sent,tape:this.state.tape.concat(this.state.buf,['|'])});
+    if(sent.replace(/ /g,'').length>=this.target().replace(/ /g,'').length){setTimeout(()=>this.finish(sent),260);return;}
+    this.wordT=setTimeout(()=>this.space(),this.state.letterGap*1.6);
+  }
+  space(){
+    const s=this.state.sent;
+    if(!s||s.endsWith(' ')) return;
+    this.setState({sent:s+' ',tape:this.state.tape.concat(['/'])});
+  }
+  tapSpaceNow(){clearTimeout(this.gapT);clearTimeout(this.wordT);if(this.state.buf.length)this.commit();setTimeout(()=>this.space(),20);}
+
+  align(a,b){
+    const n=a.length,m=b.length,d=[];
+    for(let i=0;i<=n;i++){d.push(new Array(m+1).fill(0));d[i][0]=i;}
+    for(let j=0;j<=m;j++) d[0][j]=j;
+    for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){
+      d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+    }
+    const ops=[];let i=n,j=m;
+    while(i>0||j>0){
+      if(i>0&&j>0&&d[i][j]===d[i-1][j-1]+(a[i-1]===b[j-1]?0:1)){ops.push({k:a[i-1]===b[j-1]?'ok':'sub',t:a[i-1],s:b[j-1]});i--;j--;}
+      else if(i>0&&d[i][j]===d[i-1][j]+1){ops.push({k:'del',t:a[i-1],s:''});i--;}
+      else{ops.push({k:'ins',t:'',s:b[j-1]});j--;}
+    }
+    return ops.reverse();
+  }
+
+  finish(sentArg){
+    const sent=(sentArg!==undefined?sentArg:this.state.sent+(this.state.buf.length?'':'')).trim();
+    clearTimeout(this.gapT);clearTimeout(this.wordT);
+    const tgt=this.target();
+    const ops=this.align(tgt,sent);
+    const errs=ops.filter(o=>o.k!=='ok').length;
+    const acc=Math.max(0,Math.round(100*(1-errs/Math.max(tgt.length,1))));
+    const ms=this.state.startedAt?Date.now()-this.state.startedAt:1;
+    const wpm=Math.max(0,Math.round((sent.length/5)/(ms/60000)));
+    const grade=acc>=98?'A+':acc>=93?'A':acc>=85?'B':acc>=75?'C':'D';
+    const head=acc>=98?'Clean signal.':acc>=93?'Barely a crackle.':acc>=85?'Readable, mostly.':acc>=75?'Static on the line.':'The wire got confused.';
+    this.setState(s=>{
+      const unlocked=Math.max(s.unlocked,acc>=85?Math.min(this.LEVELS.length,s.levelIdx+2):s.unlocked);
+      this.save('mc.unlocked',String(unlocked));
+      return {running:false,modal:'results',confetti:acc>=85,mood:acc>=93?'wow':acc>=85?'happy':'idle',unlocked:unlocked,
+        result:{acc:acc,wpm:wpm,ms:ms,grade:grade,headline:head,sent:sent,ops:ops}};
+    });
+    if(acc>=85) setTimeout(()=>this.setState({confetti:false}),2600);
+  }
+
+  loadLevel(i){
+    clearTimeout(this.gapT);clearTimeout(this.wordT);
+    this.setState({levelIdx:i,sent:'',tape:[],buf:[],running:false,startedAt:0,result:null,modal:null,confetti:false,mood:'idle',down:false,lamp:false});
+  }
+
+  fmt(ms){const s=Math.floor(ms/1000);return Math.floor(s/60)+':'+String(s%60).padStart(2,'0');}
+
+  countdown(){
+    const now=new Date();const d=new Date(now);
+    d.setDate(now.getDate()+((8-now.getDay())%7||7));d.setHours(0,0,0,0);
+    let t=d-now;const dd=Math.floor(t/864e5);t-=dd*864e5;const hh=Math.floor(t/36e5);t-=hh*36e5;
+    return dd+'d '+hh+'h '+Math.floor(t/6e4)+'m';
+  }
+
+  themeVars(){
+    const t=this.THEMES[this.state.theme]||this.THEMES.mango;
+    const v=Object.assign({},t.vars);
+    if(this.state.theme==='harbor'){v['--stage-dir']='row';v['--p-order']='2';v['--i-order']='1';v['--p-basis']='1 1 420px';v['--i-basis']='0 0 404px';}
+    if(!this.state.motion) v['--bg-op']='0';
+    if(this.state.view==='mobile'){
+      Object.assign(v,{'--stage-dir':'column','--p-order':'1','--i-order':'2','--p-basis':'1 1 auto','--i-basis':'1 1 auto',
+        '--p-fs':this.state.theme==='papercut'?'25px':'22px','--key-size':'138px','--app-pad':'16px','--radius':this.state.theme==='papercut'?'14px':'22px',
+        '--frame-w':'392px','--frame-bw':'13px','--frame-r':'54px','--notch':'flex','--frame-shadow':'0 26px 60px rgba(0,0,0,.30)','--dock-pad':'0px','--dock-bg':'transparent'});
+    }
+    let s='';for(const k in v) s+=k+':'+v[k]+';';
+    if(v['--grain']) s+='background-size:'+(v['--grain-size']||'7px 7px')+';';
+    return s;
+  }
+
+  renderVals(){
+    const S=this.state, T=this.THEMES[S.theme]||this.THEMES.mango, L=this.LEVELS[S.levelIdx];
+    const tgt=this.target(), sentLen=S.sent.length;
+    const disp=L.text, words=[]; let ti=0, cur=[];
+    for(let i=0;i<disp.length;i++){
+      const ch=disp[i];
+      if(ch===' '){ if(cur.length){words.push({chars:cur});cur=[];} ti++; continue; }
+      const counts=/[A-Za-z0-9]/.test(ch);
+      let st='mute';
+      if(counts){ st= ti<sentLen?'done': ti===sentLen?'cur':'todo'; ti++; }
+      const style= st==='mute'?'color:var(--ink-soft)'
+        : st==='done'?'color:var(--ink-soft)'
+        : st==='cur'?'color:var(--on1);background:var(--c1);border-radius:6px;padding:0 2px;box-shadow:0 0 0 3px color-mix(in oklab, var(--c1) 28%, transparent)'
+        : 'color:var(--ink)';
+      cur.push({ch:ch,style:style});
+    }
+    if(cur.length) words.push({chars:cur});
+
+    const tapeSyms=S.tape.concat(S.buf);
+    const shown=tapeSyms.slice(-26);
+    const tape=shown.map((t,i)=>({style:
+      t==='.'?'display:block;width:15px;height:15px;border-radius:50%;background:var(--c1);flex:none;animation:mcPop .22s cubic-bezier(.2,1.7,.4,1) both'
+      :t==='-'?'display:block;width:40px;height:15px;border-radius:999px;background:var(--c3);flex:none;animation:mcPop .22s cubic-bezier(.2,1.7,.4,1) both'
+      :t==='|'?'display:block;width:2px;height:22px;border-radius:2px;background:var(--edge);flex:none'
+      :'display:block;width:16px;height:2px;border-radius:2px;background:var(--ink-soft);opacity:.5;flex:none;align-self:flex-end;margin-bottom:3px'}));
+
+    const ms=S.running&&S.startedAt?(S.now||Date.now())-S.startedAt:(S.startedAt?(S.result?S.result.ms:0):0);
+    const wpm=ms>1200?Math.round((sentLen/5)/(ms/60000)):0;
+    const pct=Math.min(100,Math.round(100*S.sent.replace(/ /g,'').length/Math.max(1,tgt.replace(/ /g,'').length)));
+
+    const directions=Object.keys(this.THEMES).map(k=>{
+      const on=k===S.theme, th=this.THEMES[k];
+      return {label:th.label,
+        pick:()=>{this.setState({theme:k});this.save('mc.theme',k);},
+        pillStyle:'display:flex;align-items:center;gap:5px;border:none;cursor:pointer;border-radius:999px;padding:6px 12px 6px 8px;font:600 12px ui-sans-serif,system-ui,sans-serif;'+(on?'background:#fff;color:#16161a':'background:rgba(255,255,255,.10);color:rgba(255,255,255,.72)'),
+        sw1:'display:block;width:9px;height:9px;border-radius:50%;background:'+th.sw[0],
+        sw2:'display:block;width:9px;height:9px;border-radius:50%;background:'+th.sw[1],
+        sw3:'display:block;width:9px;height:9px;border-radius:50%;background:'+th.sw[2]+';margin-right:3px',
+        appStyle:'border-radius:999px;padding:11px 18px;font:700 14px var(--ui);cursor:pointer;border:var(--hair) solid var(--edge);'+(on?'background:var(--c1);color:var(--on1);border-color:transparent;box-shadow:var(--btn-shadow)':'background:var(--card);color:var(--ink)')};
+    });
+    const chromeBtn=on=>'border:none;cursor:pointer;border-radius:999px;padding:6px 13px;font:600 12px ui-sans-serif,system-ui,sans-serif;'+(on?'background:#fff;color:#16161a':'background:rgba(255,255,255,.10);color:rgba(255,255,255,.72)');
+
+    const tab=on=>'border:none;cursor:pointer;border-radius:999px;padding:11px 17px;font:700 13.5px var(--ui);transition:transform .12s;'+(on?'background:var(--card);color:var(--ink);box-shadow:var(--btn-shadow)':'background:transparent;color:var(--ink-soft)');
+
+    const res=S.result;
+    const result=res?{
+      acc:res.acc,accLabel:res.acc+'%',wpm:res.wpm,grade:res.grade,headline:res.headline,
+      timeLabel:this.fmt(res.ms),modeLabel:S.mode==='key'?'Straight key':'Dot / dash pad',
+      nextLabel:S.levelIdx+1<this.LEVELS.length&&res.acc>=85?'Next passage':'Pick a passage',
+      stampStyle:'flex:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:118px;height:118px;border-radius:50%;color:'+(res.acc>=93?'var(--on3)':res.acc>=85?'var(--on1)':'var(--on2)')+';background:'+(res.acc>=93?'var(--c3)':res.acc>=85?'var(--c1)':'var(--c2)')+';box-shadow:0 10px 0 rgba(0,0,0,.14), inset 0 0 0 5px rgba(255,255,255,.5);animation:mcStamp .55s cubic-bezier(.2,1.4,.4,1) both',
+      diff:res.ops.map(o=>({
+        top:o.t===' '?'\u00b7':(o.t||'\u00b7'),
+        bot:o.s===' '?'\u00b7':(o.s||'\u2014'),
+        wrapStyle:'display:flex;flex-direction:column;align-items:center;gap:2px;min-width:19px;padding:5px 3px;border-radius:9px;'+(o.k==='ok'?'background:var(--card)':o.k==='sub'?'background:var(--c2);color:var(--on2)':o.k==='ins'?'background:var(--c3);color:var(--on3)':'background:transparent;border:2px dashed var(--ink-soft)'),
+        topStyle:'font-family:var(--serif);font-size:17px;line-height:1',
+        botStyle:'font:500 10.5px/1 "DM Mono",ui-monospace,monospace;opacity:.8'}))
+    }:{accLabel:'—',wpm:0,grade:'',headline:'',timeLabel:'0:00',modeLabel:'',nextLabel:'Pick a passage',diff:[],stampStyle:'display:none'};
+
+    const confettiPieces=[];
+    for(let i=0;i<28;i++){
+      const c=[T.sw[0],T.sw[1],T.sw[2]][i%3], dash=i%3===1;
+      confettiPieces.push({style:'position:absolute;top:-24px;left:'+(3+(i*3.4)%94)+'%;width:'+(dash?'26px':'11px')+';height:11px;border-radius:999px;background:'+c+';animation:mcConf '+(1.7+(i%5)*.35)+'s linear '+((i%7)*.13)+'s both'});
+    }
+
+    const board=S.board.slice().sort((a,b)=>b.acc-a.acc||b.wpm-a.wpm).slice(0,9).map((r,i)=>({
+      rank:i+1,name:r.name,acc:r.acc+'%',wpm:r.wpm,lvl:r.lvl,mode:r.mode,
+      rowStyle:'display:grid;grid-template-columns:34px 1fr 68px 62px 46px 62px;gap:8px;align-items:center;padding:11px 12px;border-radius:16px;'+(r.me?'background:var(--c1);color:var(--on1)':'background:var(--paper2)'),
+      modeStyle:'justify-self:start;border-radius:999px;padding:3px 9px;font:700 10.5px var(--ui);letter-spacing:.06em;'+(r.mode==='KEY'?'background:var(--c3);color:var(--on3)':'background:var(--card);color:var(--ink-soft);border:var(--hair) solid var(--edge)')
+    }));
+
+    const levels=this.LEVELS.map((l,i)=>{
+      const locked=i+1>S.unlocked, on=i===S.levelIdx;
+      return {n:l.n,name:l.name,tag:locked?'locked':l.tag,sub:locked?'finish level '+(i)+' to open':l.author,
+        pick:locked?()=>{}:()=>this.loadLevel(i),
+        slotStyle:'display:flex;flex-direction:column;align-items:center;gap:9px;flex:none;width:150px;margin-top:'+(i%2?'34px':'0'),
+        nodeStyle:'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;width:86px;height:86px;border-radius:50%;border:none;font-family:var(--ui);'+(locked?'background:var(--paper2);color:var(--ink-soft);opacity:.75;cursor:not-allowed':'cursor:pointer;color:'+(on?'var(--on1)':'var(--on3)')+';background:'+(on?'var(--c1)':'var(--c3)')+';box-shadow:var(--btn-shadow)')};
+    });
+
+    const chart='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'.split('').map(k=>({ch:k,cells:this.MORSE[k].split('').map(s=>({
+      style:'display:block;height:12px;flex:none;border-radius:999px;background:'+(s==='.'?'var(--c1);width:12px':'var(--c3);width:30px')}))}));
+
+    const modalWidths={welcome:640,results:720,submit:520,board:640,levels:700,ref:720,settings:560,about:620};
+    const mw=modalWidths[S.modal]||600;
+
+    const moods={idle:'Ready when you are.',busy:'Keep it coming.',happy:'Nice hand!',wow:'Textbook. Pip is thrilled.'};
+
+    return {
+      vars:this.themeVars(),
+      directions:directions,
+      dirMeta:T.meta,
+      setDesktop:()=>this.setState({view:'desktop'}),
+      setMobile:()=>this.setState({view:'mobile'}),
+      desktopStyle:chromeBtn(S.view==='desktop'),
+      mobileStyle:chromeBtn(S.view==='mobile'),
+
+      level:L, words:words, tape:tape,
+      tapeHint:S.buf.length?'letter forming':(S.sent?'letter sent':'nothing yet'),
+      caretStyle:'display:block;width:3px;height:22px;border-radius:2px;background:var(--ink);flex:none;animation:mcPulse 1s ease-in-out infinite',
+      timeLabel:this.fmt(ms), wpmLabel:wpm+' wpm',
+      progressLabel:S.sent.replace(/ /g,'').length+' / '+tgt.replace(/ /g,'').length,
+      progressStyle:'height:100%;width:'+pct+'%;border-radius:999px;background:var(--c3);transition:width .25s ease',
+
+      isKeyMode:S.mode==='key', isPadMode:S.mode==='pad',
+      pickKey:()=>{this.setState({mode:'key',down:false,lamp:false});this.save('mc.mode','key');},
+      pickPad:()=>{this.setState({mode:'pad',down:false,lamp:false});this.save('mc.mode','pad');},
+      keyTabStyle:tab(S.mode==='key'), padTabStyle:tab(S.mode==='pad'),
+      lampStyle:'display:block;width:22px;height:22px;border-radius:50%;background:'+(S.lamp?'var(--c2)':'var(--paper2)')+';box-shadow:'+(S.lamp?'0 0 0 7px color-mix(in oklab, var(--c2) 26%, transparent), 0 0 22px var(--c2)':'inset 0 3px 0 rgba(0,0,0,.08)')+';transition:box-shadow .08s, background .08s',
+      lampLabel:S.down?'sending — dash forming':S.lamp?'mark':'idle',
+      keyDown:e=>{if(e&&e.preventDefault)e.preventDefault();this.press();},
+      keyUp:e=>{if(e&&e.preventDefault)e.preventDefault();this.release();},
+      tapDot:()=>this.sym('.'), tapDash:()=>this.sym('-'), tapSpace:()=>this.tapSpaceNow(),
+      straightKeyStyle:'position:relative;display:grid;place-items:center;width:var(--key-size);height:var(--key-size);border-radius:50%;border:none;cursor:pointer;background:var(--paper2);box-shadow:'+(S.down?'0 2px 0 rgba(0,0,0,.18)':'var(--btn-shadow)')+';transform:translateY('+(S.down?'6px':'0')+');transition:transform .07s, box-shadow .07s;touch-action:none;user-select:none',
+      keyCapStyle:'display:grid;place-items:center;width:74%;height:74%;border-radius:50%;background:var(--c1);box-shadow:'+(S.down?'inset 0 4px 10px rgba(0,0,0,.22)':'inset 0 -6px 0 rgba(0,0,0,.13), 0 4px 0 rgba(0,0,0,.10)'),
+      keyGlyphStyle:'display:block;height:16px;border-radius:999px;background:#fff;width:'+(S.down?'62px':'16px')+';transition:width .35s cubic-bezier(.2,1.3,.4,1)',
+      kbHint:S.mode==='key'?'Keyboard: hold space for the key':'Keyboard: Z for dot, X for dash',
+      pigeonLine:moods[S.mood]||moods.idle,
+      bubbleStyle:'background:var(--card);border:var(--hair) solid var(--edge);border-radius:18px 18px 18px 6px;padding:10px 14px;font:600 13.5px var(--ui);color:var(--ink);box-shadow:var(--shadow)',
+
+      finishNow:()=>{if(this.state.buf.length){this.commit();setTimeout(()=>this.finish(),120);}else this.finish();},
+      resetRun:()=>this.loadLevel(S.levelIdx),
+
+      anyModal:!!S.modal,
+      modalCardStyle:'position:relative;width:'+mw+'px;max-width:100%;background:var(--card);color:var(--ink);border:var(--hair) solid var(--edge);border-radius:calc(var(--radius) + 8px);box-shadow:0 30px 70px rgba(20,10,4,.30);padding:30px 30px 28px;font-family:var(--ui);animation:mcCard .32s cubic-bezier(.2,1.3,.4,1) both;overflow:hidden',
+      mWelcome:S.modal==='welcome', mResults:S.modal==='results', mSubmit:S.modal==='submit',
+      mBoard:S.modal==='board', mLevels:S.modal==='levels', mRef:S.modal==='ref',
+      mSettings:S.modal==='settings', mAbout:S.modal==='about',
+      closeModal:()=>{this.save('mc.seen','1');this.setState({modal:null,confetti:false});},
+      openLevels:()=>this.setState({modal:'levels'}), openBoard:()=>this.setState({modal:'board'}),
+      openRef:()=>this.setState({modal:'ref'}), openSettings:()=>this.setState({modal:'settings'}),
+      openAbout:()=>this.setState({modal:'about'}), openSubmit:()=>this.setState({modal:'submit',confetti:false}),
+      nextLevel:()=>{const i=S.levelIdx+1;if(i<this.LEVELS.length&&i+1<=S.unlocked)this.loadLevel(i);else this.setState({modal:'levels'});},
+      retryLevel:()=>this.loadLevel(S.levelIdx),
+
+      result:result, confetti:S.confetti, confettiPieces:confettiPieces,
+      name:S.name, onName:e=>{this.setState({name:e.target.value});},
+      submitScore:()=>{
+        const nm=(S.name||'').trim()||'anonymous key';
+        const row={name:nm,acc:res?res.acc:0,wpm:res?res.wpm:0,lvl:L.n,mode:S.mode==='key'?'KEY':'PAD',me:true};
+        const b=S.board.filter(r=>!r.me).concat([row]);
+        this.save('mc.name',nm);this.save('mc.board',JSON.stringify(b));
+        this.setState({board:b,modal:'board'});
+      },
+      board:board, countdown:this.countdown(),
+      levels:levels, chart:chart,
+
+      dotMax:S.dotMax, letterGap:S.letterGap,
+      onDotMax:e=>this.setState({dotMax:parseInt(e.target.value,10)}),
+      onLetterGap:e=>this.setState({letterGap:parseInt(e.target.value,10)}),
+      toggleSound:()=>this.setState({sound:!S.sound}),
+      toggleMotion:()=>this.setState({motion:!S.motion}),
+      soundLabel:S.sound?'Sidetone: on':'Sidetone: off',
+      motionLabel:S.motion?'Background drift: on':'Background drift: off',
+      soundStyle:'border-radius:999px;padding:12px 20px;font:700 14px var(--ui);cursor:pointer;border:var(--hair) solid var(--edge);'+(S.sound?'background:var(--c3);color:var(--on3);border-color:transparent;box-shadow:var(--btn-shadow)':'background:var(--card);color:var(--ink-soft)'),
+      motionStyle:'border-radius:999px;padding:12px 20px;font:700 14px var(--ui);cursor:pointer;border:var(--hair) solid var(--edge);'+(S.motion?'background:var(--c3);color:var(--on3);border-color:transparent;box-shadow:var(--btn-shadow)':'background:var(--card);color:var(--ink-soft)'),
+      resetProgress:()=>{try{localStorage.removeItem('mc.unlocked');localStorage.removeItem('mc.board');}catch(e){}this.setState({unlocked:3,board:this.SEED.slice(),levelIdx:0,modal:'levels'});}
+    };
+  }
+}
+</script>
+</body>
+</html>
