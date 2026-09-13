@@ -36,9 +36,12 @@ const DOUBLE_QUOTES = /[“”„‟″«»]/g // “ ” „ ‟ ″ « »
  * Reduce text to what can be sent in Morse: accents stripped, curly quotes
  * straightened, whitespace collapsed to single spaces, and every character
  * without a Morse code dropped. Case is preserved.
+ *
+ * `keep` lists extra characters to retain even though they have no code
+ * (the decoder's UNKNOWN_CHAR, so a garbled letter still takes up a position).
  */
-export function normalize(text) {
-  const plain = text
+export function normalize(text, { keep = '' } = {}) {
+  const plain = String(text ?? '')
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
     .replace(SINGLE_QUOTES, "'")
@@ -47,7 +50,7 @@ export function normalize(text) {
   let out = ''
   for (const char of plain) {
     if (/\s/.test(char)) out += ' '
-    else if (toMorse(char)) out += char
+    else if (toMorse(char) || keep.includes(char)) out += char
   }
   return out.replace(/ {2,}/g, ' ').trim()
 }

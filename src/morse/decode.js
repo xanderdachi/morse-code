@@ -1,40 +1,31 @@
 import { fromMorse } from './alphabet.js'
-import { DASH, DOT, LETTER_GAP, WORD_GAP } from './timing.js'
+import { DASH, DOT, LETTER_GAP } from './symbols.js'
 
-/** Stands in for a letter whose code isn't in the table. Has no Morse code itself. */
+/**
+ * Stands in for a letter whose code isn't in the table. Has no Morse code
+ * itself. Emitted rather than dropping the letter, so grading still sees a
+ * character in that position and marks it wrong instead of shifting everything.
+ */
 export const UNKNOWN_CHAR = '#'
 
 /**
- * Turn symbol tokens (an array, or a string like '.- -.../..') into uppercase text.
- * A trailing unfinished letter is decoded as if its gap had arrived. Repeated
- * gaps collapse, and the result never starts or ends with a space.
+ * Turn symbol tokens (an array, or a string like '.- -...') into uppercase
+ * letters with no spaces: spaces are never keyed. A trailing unfinished letter
+ * is decoded as if its boundary had arrived; repeated boundaries collapse.
  */
 export function decode(symbols) {
   let text = ''
   let code = ''
-  let spacePending = false
-
   const endLetter = () => {
-    if (!code) return
-    if (spacePending && text) text += ' '
-    text += fromMorse(code) ?? UNKNOWN_CHAR
+    if (code) text += fromMorse(code) ?? UNKNOWN_CHAR
     code = ''
-    spacePending = false
   }
 
   for (const symbol of symbols) {
-    if (symbol === DOT || symbol === DASH) {
-      code += symbol
-    } else if (symbol === LETTER_GAP) {
-      endLetter()
-    } else if (symbol === WORD_GAP) {
-      endLetter()
-      spacePending = true
-    } else {
-      throw new TypeError(`Unknown Morse symbol: ${JSON.stringify(symbol)}`)
-    }
+    if (symbol === DOT || symbol === DASH) code += symbol
+    else if (symbol === LETTER_GAP) endLetter()
+    else throw new TypeError(`Unknown Morse symbol: ${JSON.stringify(symbol)}`)
   }
   endLetter()
-
   return text
 }

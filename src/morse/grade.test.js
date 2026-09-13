@@ -1,85 +1,137 @@
 import { describe, expect, it } from 'vitest'
+import { UNKNOWN_CHAR } from './decode.js'
 import { grade } from './grade.js'
+import { codeUnits, textUnits, unitMsForWpm } from './units.js'
+import { toMorse } from './alphabet.js'
 
-const kinds = result => result.chars.map(c => c.kind)
+const ops = result => result.ops.map(o => o.op)
+const letters = text => text.replaceAll(' ', '')
 
-describe('grade', () => {
-  it('scores a perfect transmission', () => {
-    const result = grade({ target: 'TO BE', sent: 'TO BE', elapsedMs: 10_000 })
-    expect(result.accuracy).toBe(1)
-    expect(kinds(result)).toEqual(['correct', 'correct', 'correct', 'correct', 'correct'])
-    expect(result.counts).toEqual({ correct: 5, wrong: 0, missed: 0, extra: 0 })
+// 100 letters once spaces are removed.
+const PASSAGE =
+  'In a certain kingdom, in a certain land, there lived a Tsar who had three sons, one daughter and one clever grey horse too.'
+
+describe('spaces are never scored', () => {
+  it('uses a 100-letter passage', () => {
+    expect(grade({ target: PASSAGE, sent: '' }).target).toHaveLength(100)
   })
 
-  it('ignores case and keeps the original characters in the review', () => {
-    const result = grade({ target: 'To be', sent: 'TO BE', elapsedMs: 1 })
-    expect(result.accuracy).toBe(1)
-    expect(result.chars[1]).toEqual({ kind: 'correct', expected: 'o', actual: 'O' })
+  it('scores a 40-character target with 8 spaces out of 32', () => {
+    const target = 'abcd efgh ijkl mnop qrst uvwx yz0 123 45'
+    expect(target).toHaveLength(40)
+    expect([...target].filter(c => c === ' ')).toHaveLength(8)
+    const result = grade({ target, sent: letters(target).slice(0, 16) })
+    expect(result.target).toHaveLength(32)
+    expect(result.accuracy).toBe(50)
   })
 
-  it('marks a substituted character as wrong', () => {
-    const result = grade({ target: 'CAT', sent: 'CUT', elapsedMs: 1 })
-    expect(kinds(result)).toEqual(['correct', 'wrong', 'correct'])
-    expect(result.chars[1]).toEqual({ kind: 'wrong', expected: 'A', actual: 'U' })
-    expect(result.accuracy).toBeCloseTo(2 / 3)
+  it('neither rewards nor penalises spaces in what was sent', () => {
+    const withSpaces = grade({ target: 'TO BE', sent: 'TO BE' })
+    const without = grade({ target: 'TO BE', sent: 'TOBE' })
+    const extra = grade({ target: 'TO BE', sent: 'T O B E' })
+    for (const result of [withSpaces, without, extra]) {
+      expect(result.accuracy).toBe(100)
+      expect(ops(result)).toEqual(['match', 'match', 'match', 'match'])
+    }
   })
 
-  it('marks a skipped character as missed', () => {
-    const result = grade({ target: 'HELLO', sent: 'HELO', elapsedMs: 1 })
-    expect(kinds(result)).toEqual(['correct', 'correct', 'correct', 'missed', 'correct'])
-    expect(result.chars[3]).toEqual({ kind: 'missed', expected: 'L', actual: null })
-    expect(result.accuracy).toBeCloseTo(4 / 5)
+  it('re-injects word breaks into the character review', () => {
+    const result = grade({ target: 'To be, or not', sent: 'TOBEORNOT' })
+    expect(result.review.map(word => word.map(o => o.expected ?? '').join(''))).toEqual(['To', 'be,', 'or', 'not'])
+    expect(result.review[1].map(o => o.op)).toEqual(['match', 'match', 'delete'])
   })
 
-  it('marks an inserted character as extra', () => {
-    const result = grade({ target: 'NOT', sent: 'NOOT', elapsedMs: 1 })
-    expect(result.counts).toEqual({ correct: 3, wrong: 0, missed: 0, extra: 1 })
-    expect(result.chars.find(c => c.kind === 'extra')).toEqual({ kind: 'extra', expected: null, actual: 'O' })
-    expect(result.accuracy).toBeCloseTo(3 / 4)
+  it('keeps extra letters inside the word where they were sent', () => {
+    const result = grade({ target: 'AB CD', sent: 'ABXCD' })
+    expect(result.review.map(word => word.map(o => o.actual ?? '').join(''))).toEqual(['ABX', 'CD'])
+  })
+})
+
+describe('alignment', () => {
+  const at = (text, k) => letters(text).slice(0, k)
+
+  it('costs one deleted letter in the middle of 100 exactly 1%', () => {
+    const sent = at(PASSAGE, 50) + letters(PASSAGE).slice(51)
+    const result = grade({ target: PASSAGE, sent })
+    expect(result.accuracy).toBe(99)
+    expect(result.counts).toEqual({ match: 99, substitute: 0, insert: 0, delete: 1 })
   })
 
-  it('counts a missing word gap as a missed space', () => {
-    const result = grade({ target: 'TO BE', sent: 'TOBE', elapsedMs: 1 })
-    expect(result.chars[2]).toEqual({ kind: 'missed', expected: ' ', actual: null })
-    expect(result.counts.missed).toBe(1)
+  it('costs one substituted letter in the middle of 100 exactly 1%', () => {
+    const sent = `${at(PASSAGE, 50)}Q${letters(PASSAGE).slice(51)}`
+    expect(grade({ target: PASSAGE, sent }).accuracy).toBe(99)
   })
 
-  it('lines up the review in reading order with a mix of mistakes', () => {
-    const result = grade({ target: 'MORSE', sent: 'NRSEE', elapsedMs: 1 })
-    expect(result.chars.map(c => [c.kind, c.expected, c.actual])).toEqual([
-      ['wrong', 'M', 'N'],
-      ['missed', 'O', null],
-      ['correct', 'R', 'R'],
-      ['correct', 'S', 'S'],
-      ['correct', 'E', 'E'],
-      ['extra', null, 'E'],
+  it('does not cascade one inserted letter in the middle of 100', () => {
+    const sent = `${at(PASSAGE, 50)}Q${letters(PASSAGE).slice(50)}`
+    const result = grade({ target: PASSAGE, sent })
+    expect(result.counts).toEqual({ match: 100, substitute: 0, insert: 1, delete: 0 })
+    expect(result.accuracy).toBeGreaterThanOrEqual(99) // matches ÷ target length: an insertion displaces nothing
+  })
+
+  it('names each operation with what was expected and what arrived', () => {
+    expect(grade({ target: 'MORSE', sent: 'NRSEE' }).ops).toEqual([
+      { op: 'substitute', expected: 'M', actual: 'N' },
+      { op: 'delete', expected: 'O', actual: null },
+      { op: 'match', expected: 'R', actual: 'R' },
+      { op: 'match', expected: 'S', actual: 'S' },
+      { op: 'match', expected: 'E', actual: 'E' },
+      { op: 'insert', expected: null, actual: 'E' },
     ])
-    expect(result.accuracy).toBeCloseTo(3 / 5)
   })
 
-  it('always covers every character of both strings', () => {
-    const target = 'IN A CERTAIN KINGDOM'
-    const sent = 'IM A CERTIN KINGDOOM X'
-    const { chars } = grade({ target, sent, elapsedMs: 1 })
-    expect(chars.map(c => c.expected ?? '').join('')).toBe(target)
-    expect(chars.map(c => c.actual ?? '').join('')).toBe(sent)
+  it('compares case-insensitively after normalizing both sides', () => {
+    const result = grade({ target: 'Petit à petit, l’oiseau', sent: "petita petit,l'OISEAU" })
+    expect(result.accuracy).toBe(100)
+    expect(result.ops[0]).toEqual({ op: 'match', expected: 'P', actual: 'p' })
   })
 
-  it('scores an empty transmission as zero', () => {
-    const result = grade({ target: 'SOS', sent: '', elapsedMs: 5000 })
-    expect(result.accuracy).toBe(0)
-    expect(result.wpm).toBe(0)
-    expect(kinds(result)).toEqual(['missed', 'missed', 'missed'])
+  it('keeps the unknown-letter sentinel as a wrong letter', () => {
+    const result = grade({ target: 'EAT', sent: `E${UNKNOWN_CHAR}T` })
+    expect(ops(result)).toEqual(['match', 'substitute', 'match'])
+  })
+})
+
+describe('bounds', () => {
+  it('scores an empty transmission as zero, without NaN', () => {
+    expect(grade({ target: 'SOS', sent: '', elapsedMs: 5000 })).toMatchObject({ accuracy: 0, wpm: 0, effectiveWpm: 0 })
   })
 
-  it('stays within 0–1 when far more is sent than asked for', () => {
-    const result = grade({ target: 'E', sent: 'TTTTTTTTTT', elapsedMs: 1 })
-    expect(result.accuracy).toBe(0)
+  it('handles an empty target', () => {
+    expect(grade({ target: '', sent: '' }).accuracy).toBe(100)
+    expect(grade({ target: ' — ', sent: 'ABC' }).accuracy).toBe(0)
   })
 
-  it('computes gross words per minute from five-character words', () => {
-    expect(grade({ target: 'X', sent: 'A'.repeat(25), elapsedMs: 60_000 }).wpm).toBeCloseTo(5)
-    expect(grade({ target: 'X', sent: 'TO BE OR NOT', elapsedMs: 30_000 }).wpm).toBeCloseTo(4.8)
-    expect(grade({ target: 'X', sent: 'ABC', elapsedMs: 0 }).wpm).toBe(0)
+  it('stays within [0, 100]', () => {
+    expect(grade({ target: 'E', sent: 'TTTTTTTTTT' }).accuracy).toBe(0)
+  })
+})
+
+describe('speed', () => {
+  it('reports PARIS WPM for a perfect run, crediting the word spaces it passed', () => {
+    const unit = unitMsForWpm(20)
+    const result = grade({
+      target: 'PARIS PARIS',
+      sent: 'PARISPARIS',
+      elapsedMs: textUnits('PARIS PARIS') * unit,
+      letterUnits: codeUnits([...'PARISPARIS'].map(toMorse)),
+    })
+    expect(result.wpm).toBeCloseTo(20, 10)
+    expect(result.effectiveWpm).toBeCloseTo(20, 10)
+  })
+
+  it('credits only the word spaces a partial run actually reached', () => {
+    const unit = unitMsForWpm(15)
+    const sent = 'INACERTAIN'
+    const elapsedMs = textUnits('IN A CERTAIN') * unit
+    const result = grade({ target: PASSAGE, sent, elapsedMs, letterUnits: codeUnits([...sent].map(toMorse)) })
+    expect(result.wpm).toBeCloseTo(15, 10)
+    expect(result.effectiveWpm).toBeCloseTo(15, 10)
+  })
+
+  it('gives no effective credit for wrong letters', () => {
+    const result = grade({ target: 'PARIS', sent: 'XXXXX', elapsedMs: 10_000 })
+    expect(result.wpm).toBeGreaterThan(0)
+    expect(result.effectiveWpm).toBe(0)
   })
 })

@@ -1,197 +1,436 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
-import {
-  CONFIG,
-  DASH,
-  DOT,
-  LETTER_GAP,
-  WORD_GAP,
-  appendGap,
-  classifyGap,
-  classifyPress,
-  thresholdsMs,
-} from '../morse/timing.js'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { hapticTap, sidetone as sharedSidetone } from '../lib/sidetone.js'
+import { createKeyer } from '../morse/keyer.js'
+import { DASH, DOT } from '../morse/symbols.js'
+import { CONFIG } from '../morse/timing.js'
+import { createLatencyProbe } from './pressLatency.js'
 
-/** The two ways to key, by id: 'key' uses pressKey/releaseKey, 'pad' uses pressPad/releasePad. */
+/** The two ways to key, by id. */
 export const INPUT_MODES = {
   key: 'Straight key',
   pad: 'Dot / dash pad',
 }
 
-const INITIAL_STATE = Object.freeze({
-  symbols: [],
-  isKeyDown: false, // straight key held
-  isPadDown: false, // any pad button held
-  dashFormed: false, // straight key held long enough to become a dash
-  startedAt: null, // first contact, performance.now() clock
-  endedAt: null, // end of the most recent mark
-})
+const PAD_KEYS = { '.': DOT, '-': DASH }
+
+const MEASURE_LATENCY = import.meta.env.DEV && import.meta.env.MODE !== 'test'
+
+// Gestures that let a page start audio. A touch pointerdown doesn't count in
+// every browser, so the release and taps on any other control unlock it too.
+const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
 
 /**
- * Keying state machine for both input modes.
+ * DOM input for one keyer. This hook owns every input event: it timestamps
+ * them, feeds them to the keyer in src/morse/keyer.js, and re-reads the keyer
+ * whenever its answer could change without a new event (a held key becoming a
+ * dash, a pause beginning, the error path closing a wrong letter, silence
+ * ending the run). It makes no timing decisions itself; components only render
+ * what it returns.
  *
- * Straight key: pressKey() / releaseKey(); the hold time decides dot or dash.
- * Dot/dash pad: pressPad(symbol) sends immediately, releasePad() starts the gap clock.
- * Silence after a mark ends the letter, then the word, on timers from CONFIG.
- * Every handler takes an optional timestamp on the performance.now() clock.
+ * Options:
+ *   mode         'key' or 'pad': which keyboard bindings are live
+ *                  key: hold Space as the key
+ *                  pad: . dot, - dash, Space end letter
+ *                  both: Backspace undo, when undo is allowed
+ *   target       the passage being sent
+ *   anchored     segment letters against the passage (default) or by timing alone
+ *   unitMs       the operator's calibrated dot length, or null for the default
+ *   enabled      listen to the keyboard; turning this off releases anything held
+ *   undoEnabled  whether Backspace and undo() do anything
+ *   sidetone     sound a tone while the key is down
+ *   haptics      buzz briefly on each touch press, where the device can
+ *   beforePress  called before a new press is accepted; return false to refuse it
+ *   onUpdate     called with the live state whenever it changes
+ *   onFinalize   called once with the fixed result when the run ends, however it ended
+ *
+ * Returns the live state (strip, letters, cursor, remaining, paused, timing for
+ * the clock, what's held), `run` (null until the run is finalized, then the
+ * fixed result, whether silence or finish() ended it), props to spread on the
+ * key, pad and end-letter buttons, and undo() / finish() / reset(). Once
+ * finalized, all input is discarded until reset().
+ *
+ * Touch: the key and pad props attach non-passive Pointer Event listeners (no
+ * touch or mouse listeners, which would double every mark). Each key belongs to
+ * one pointer from its pointerdown until that pointer's pointerup or
+ * pointercancel, wherever the finger has slid to; a second finger on a held key
+ * is ignored, and the two pads are held independently. Losing focus or hiding
+ * the page releases everything, timed by that event.
  */
-export function useMorseInput(config = CONFIG) {
-  const [keyer] = useState(() => createKeyer(config))
-  const state = useSyncExternalStore(keyer.subscribe, keyer.getState)
+export function useMorseInput({
+  mode = 'key',
+  target = '',
+  anchored = true,
+  unitMs = null,
+  enabled = true,
+  undoEnabled = false,
+  sidetone = false,
+  haptics = false,
+  beforePress,
+  onUpdate,
+  onFinalize,
+} = {}) {
+  const optionsRef = useRef({ beforePress, undoEnabled, sidetone, haptics, onUpdate, onFinalize })
+  useLayoutEffect(() => {
+    optionsRef.current = { beforePress, undoEnabled, sidetone, haptics, onUpdate, onFinalize }
+  })
 
-  useEffect(() => keyer.setConfig(config), [keyer, config])
-  useEffect(() => keyer.dispose, [keyer])
+  const [store] = useState(() => createKeyerStore({ unitMs, target, anchored }))
+  const [latency] = useState(() => createLatencyProbe({ enabled: MEASURE_LATENCY }))
+  const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
 
-  return { ...state, ...keyer.actions }
+  useEffect(
+    () =>
+      store.delegate({
+        update: snapshot => optionsRef.current.onUpdate?.(snapshot),
+        finalize: run => optionsRef.current.onFinalize?.(run),
+        hold: holding => sharedSidetone.hold(store, holding && optionsRef.current.sidetone),
+      }),
+    [store],
+  )
+
+  useEffect(() => store.configure({ unitMs, target, anchored }), [store, unitMs, target, anchored])
+  useEffect(() => store.dispose, [store])
+
+  // Turning the sidetone off mid-press silences it now; unmounting always does.
+  useEffect(() => {
+    if (!sidetone) sharedSidetone.hold(store, false)
+  }, [store, sidetone])
+  useEffect(() => () => sharedSidetone.hold(store, false), [store])
+
+  useEffect(() => {
+    if (!sidetone) return
+    const unlock = () => sharedSidetone.unlock()
+    for (const type of AUDIO_GESTURES) window.addEventListener(type, unlock, { capture: true, passive: true })
+    return () => {
+      for (const type of AUDIO_GESTURES) window.removeEventListener(type, unlock, { capture: true })
+    }
+  }, [sidetone])
+
+  const handlers = useMemo(() => {
+    const pressAllowed = () => optionsRef.current.beforePress?.() !== false
+    const keys = new Set()
+
+    const releaseEverything = t => {
+      for (const key of keys) key.forget()
+      store.releaseAll(t)
+    }
+
+    // One on-screen key, owned by at most one pointer at a time. The ref
+    // attaches its pointerdown listener; releases are matched by pointerId on
+    // window, so they arrive wherever the pointer ends up, captured or not.
+    function pointerKey(press, release) {
+      let owner = null
+
+      const onPointerDown = event => {
+        if (event.button !== 0) return
+        // Non-passive: no text selection, focus change or emulated mouse events.
+        event.preventDefault()
+        if (owner !== null) return // a second finger on a key that's already held
+        const t = eventTime(event)
+        if (!pressAllowed() || !press(t)) return
+        owner = event.pointerId
+        latency.pressed(t, event.pointerType)
+        try {
+          // Sliding off the key still delivers this pointer's release to it.
+          event.currentTarget.setPointerCapture(event.pointerId)
+        } catch {
+          // The pointer is already gone; the window listener still sees its release.
+        }
+        if (optionsRef.current.haptics && event.pointerType !== 'mouse') hapticTap()
+      }
+
+      const key = {
+        release(event) {
+          if (owner === null || event.pointerId !== owner) return
+          owner = null
+          release(eventTime(event))
+        },
+        forget() {
+          owner = null
+        },
+        ref(node) {
+          if (!node) return
+          keys.add(key)
+          node.addEventListener('pointerdown', onPointerDown, { passive: false })
+          node.addEventListener('contextmenu', preventDefault)
+          return () => {
+            node.removeEventListener('pointerdown', onPointerDown)
+            node.removeEventListener('contextmenu', preventDefault)
+            keys.delete(key)
+            // Unmounted mid-press (a layout or mode switch): let go now.
+            if (owner !== null) {
+              owner = null
+              release(performance.now())
+            }
+          }
+        },
+      }
+      return key
+    }
+
+    const straightKey = pointerKey(store.keyDown, store.keyUp)
+    const dotKey = pointerKey(
+      t => store.padDown(DOT, t),
+      t => store.padUp(DOT, t),
+    )
+    const dashKey = pointerKey(
+      t => store.padDown(DASH, t),
+      t => store.padUp(DASH, t),
+    )
+
+    return {
+      keys,
+      releaseEverything,
+      keyProps: { ref: straightKey.ref },
+      padProps: { [DOT]: { ref: dotKey.ref }, [DASH]: { ref: dashKey.ref } },
+      letterProps: { onClick: event => store.commitLetter(eventTime(event)) },
+      undo: () => {
+        if (optionsRef.current.undoEnabled) store.undo(performance.now())
+      },
+      reset: () => {
+        for (const key of keys) key.forget()
+        store.reset()
+      },
+    }
+  }, [store, latency])
+
+  // Pointer releases, and anything that means the finger or the page is gone.
+  // These stay on whether or not the keyboard is enabled.
+  useEffect(() => {
+    const { keys, releaseEverything } = handlers
+    const onPointerRelease = event => {
+      for (const key of keys) key.release(event)
+    }
+    const onBlur = event => releaseEverything(eventTime(event))
+    const onVisibilityChange = event => {
+      if (document.visibilityState === 'hidden') releaseEverything(eventTime(event))
+    }
+
+    window.addEventListener('pointerup', onPointerRelease, { passive: false })
+    window.addEventListener('pointercancel', onPointerRelease, { passive: false })
+    window.addEventListener('blur', onBlur)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      window.removeEventListener('pointerup', onPointerRelease)
+      window.removeEventListener('pointercancel', onPointerRelease)
+      window.removeEventListener('blur', onBlur)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [handlers])
+
+  useEffect(() => {
+    if (!enabled) return
+    const pressAllowed = () => optionsRef.current.beforePress?.() !== false
+
+    const onKeyDown = event => {
+      if (isTypingTarget(event.target) || event.metaKey || event.ctrlKey || event.altKey) return
+      const t = eventTime(event)
+      if (event.key === 'Backspace') {
+        if (!optionsRef.current.undoEnabled) return
+        event.preventDefault()
+        if (!event.repeat) store.undo(t)
+        return
+      }
+      if (mode === 'key') {
+        if (event.code !== 'Space') return
+        event.preventDefault()
+        // Auto-repeat fires keydown continuously while held; only the first is a press.
+        if (!event.repeat && pressAllowed() && store.keyDown(t)) latency.pressed(t, 'key')
+        return
+      }
+      const pad = PAD_KEYS[event.key]
+      if (pad) {
+        event.preventDefault()
+        if (!event.repeat && pressAllowed() && store.padDown(pad, t)) latency.pressed(t, 'key')
+      } else if (event.code === 'Space') {
+        event.preventDefault()
+        if (!event.repeat) store.commitLetter(t)
+      }
+    }
+
+    const onKeyUp = event => {
+      if (isTypingTarget(event.target)) return
+      const t = eventTime(event)
+      if (mode === 'key') {
+        if (event.code !== 'Space') return
+        event.preventDefault()
+        store.keyUp(t)
+        return
+      }
+      const pad = PAD_KEYS[event.key]
+      if (pad) store.padUp(pad, t)
+      else if (event.code === 'Space') event.preventDefault()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('keyup', onKeyUp)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('keyup', onKeyUp)
+      handlers.releaseEverything(performance.now())
+    }
+  }, [enabled, mode, store, handlers, latency])
+
+  useLayoutEffect(() => {
+    if (state.isKeyDown || state.padsDown[DOT] || state.padsDown[DASH]) latency.committed()
+  }, [latency, state.isKeyDown, state.padsDown])
+
+  const { keyProps, padProps, letterProps, undo, reset } = handlers
+  return { ...state, keyProps, padProps, letterProps, undo, finish: store.finish, reset }
 }
 
-/** An input event's timestamp on the performance.now() clock. */
-export function eventTime(event) {
+// The keyer plus a subscription and a re-check timer, shaped for useSyncExternalStore.
+function createKeyerStore({ unitMs, target, anchored }) {
+  const keyer = createKeyer({ unitMs: unitMs ?? CONFIG.defaultUnitMs, target, anchored })
+  const listeners = new Set()
+  let snapshot = toSnapshot(keyer.state(performance.now()), null)
+  let timer = null
+  let announced = null // the finalized run the finalize handler was last called with
+  let holding = false
+  let handlers = {}
+
+  // Tell the delegate when the key goes down or comes up, before anything slower runs.
+  function syncHolding() {
+    if (keyer.holding === holding) return
+    holding = keyer.holding
+    handlers.hold?.(holding)
+  }
+
+  function refresh() {
+    clearTimeout(timer)
+    timer = null
+    const now = performance.now()
+    // Silence may have ended the run; the keyer decides from the real time since the last release.
+    const result = keyer.update(now)
+    syncHolding()
+    const previous = snapshot
+    snapshot = toSnapshot(result, snapshot)
+    if (snapshot !== previous) {
+      for (const listener of listeners) listener()
+    }
+    // The callback doesn't trust its own delay: refresh() re-reads the clock and
+    // the keyer decides from the real time since the last mark.
+    if (result.nextCheckAt !== null) {
+      timer = setTimeout(refresh, Math.max(0, result.nextCheckAt - performance.now()) + 1)
+    }
+    // Handlers last: they may reset the store, which refreshes again from scratch.
+    if (result.finalized && result !== announced) {
+      announced = result
+      handlers.finalize?.(result)
+    }
+    if (snapshot !== previous) handlers.update?.(snapshot)
+  }
+
+  // Record an input; returns whether the keyer accepted it.
+  const act =
+    fn =>
+    (...args) => {
+      const accepted = fn(...args)
+      if (accepted) {
+        syncHolding()
+        refresh()
+      }
+      return accepted
+    }
+
+  return {
+    subscribe(listener) {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+    getSnapshot: () => snapshot,
+
+    /** Register { update, finalize, hold } handlers. Returns an unregister function. */
+    delegate(next) {
+      handlers = next
+      return () => {
+        if (handlers === next) handlers = {}
+      }
+    },
+
+    keyDown: act(keyer.keyDown),
+    keyUp: act(keyer.keyUp),
+    padDown: act(keyer.padDown),
+    padUp: act(keyer.padUp),
+    commitLetter: act(keyer.commitLetter),
+    undo: act(keyer.undo),
+    releaseAll: act(keyer.releaseAll),
+
+    /** The Finish control: end the run now, whatever was sent. Returns the result, including its keystroke log. */
+    finish() {
+      const run = keyer.finish(performance.now())
+      syncHolding()
+      refresh()
+      return run
+    },
+
+    reset() {
+      keyer.reset()
+      syncHolding()
+      refresh()
+    },
+
+    configure(options) {
+      keyer.configure({ ...options, unitMs: options.unitMs ?? CONFIG.defaultUnitMs })
+      refresh()
+    },
+
+    dispose() {
+      clearTimeout(timer)
+      timer = null
+    },
+  }
+}
+
+// Only what the UI renders, reusing the previous snapshot when nothing it shows changed.
+function toSnapshot(result, previous) {
+  const next = {
+    run: result.finalized ? result : null,
+    strip: result.strip,
+    lettersSent: result.letters.length,
+    remaining: result.remaining,
+    text: result.text,
+    cursor: result.cursor,
+    complete: result.complete,
+    paused: result.paused,
+    isKeyDown: result.isKeyDown,
+    padsDown: result.padsDown,
+    dashFormed: result.dashFormed,
+    startedAt: result.startedAt,
+    lastEnd: result.endedAt,
+    pausedMs: result.pausedMs,
+    pauseAfterMs: result.pauseAfterMs,
+    letterUnits: result.letterUnits,
+    unitMs: result.unitMs,
+  }
+  if (!previous) return next
+  if (sameStrip(previous.strip, next.strip)) next.strip = previous.strip
+  if (previous.padsDown[DOT] === next.padsDown[DOT] && previous.padsDown[DASH] === next.padsDown[DASH]) {
+    next.padsDown = previous.padsDown
+  }
+  const unchanged = Object.keys(next).every(key => Object.is(next[key], previous[key]))
+  return unchanged ? previous : next
+}
+
+function sameStrip(a, b) {
+  return (
+    a.length === b.length &&
+    a.every((mark, i) => mark.id === b[i].id && mark.symbol === b[i].symbol && mark.endsLetter === b[i].endsLetter)
+  )
+}
+
+// An input event's time on the performance.now() clock, when the input happened
+// rather than when the handler ran.
+function eventTime(event) {
   const now = performance.now()
   const stamp = event?.timeStamp
   return stamp > 0 && stamp <= now ? stamp : now
 }
 
-/** True when a keyboard event is aimed at something the user is typing into. */
-export function isTypingTarget(target) {
-  return target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]') !== null
+function preventDefault(event) {
+  event.preventDefault()
 }
 
-function createKeyer(initialConfig) {
-  let config = initialConfig
-  let state = INITIAL_STATE
-  const listeners = new Set()
-
-  let keyPressedAt = null
-  let padsHeld = 0
-  let lastMarkEnd = null
-  let gapTimers = []
-  let dashTimer = null
-
-  const set = patch => {
-    state = { ...state, ...patch }
-    for (const listener of listeners) listener()
-  }
-
-  const setSymbols = symbols => {
-    if (symbols !== state.symbols) set({ symbols })
-  }
-
-  const clearTimers = () => {
-    gapTimers.forEach(clearTimeout)
-    gapTimers = []
-    clearTimeout(dashTimer)
-  }
-
-  const holding = () => keyPressedAt !== null || padsHeld > 0
-
-  // A new mark is starting: commit whatever the silence before it meant, in
-  // case a gap timer was throttled and hasn't fired yet.
-  function beginMark(at) {
-    if (holding()) return
-    gapTimers.forEach(clearTimeout)
-    gapTimers = []
-    if (lastMarkEnd !== null) {
-      const gap = classifyGap(at - lastMarkEnd, config)
-      if (gap) setSymbols(appendGap(state.symbols, gap))
-    }
-    if (state.startedAt === null) set({ startedAt: at })
-  }
-
-  function endMark(at) {
-    lastMarkEnd = at
-    set({ endedAt: at })
-    const { letterGap, wordGap } = thresholdsMs(config)
-    const late = performance.now() - at
-    gapTimers = [
-      setTimeout(() => setSymbols(appendGap(state.symbols, LETTER_GAP)), Math.max(0, letterGap - late)),
-      setTimeout(() => setSymbols(appendGap(state.symbols, WORD_GAP)), Math.max(0, wordGap - late)),
-    ]
-  }
-
-  const actions = {
-    pressKey(at = performance.now()) {
-      if (keyPressedAt !== null) return
-      beginMark(at)
-      keyPressedAt = at
-      const untilDash = thresholdsMs(config).dash - (performance.now() - at)
-      dashTimer = setTimeout(() => set({ dashFormed: true }), Math.max(0, untilDash) + 1)
-      set({ isKeyDown: true, dashFormed: false })
-    },
-
-    releaseKey(at = performance.now()) {
-      if (keyPressedAt === null) return
-      const symbol = classifyPress(at - keyPressedAt, config)
-      keyPressedAt = null
-      clearTimeout(dashTimer)
-      set({ symbols: [...state.symbols, symbol], isKeyDown: false, dashFormed: false })
-      endMark(at)
-    },
-
-    pressPad(symbol, at = performance.now()) {
-      if (symbol !== DOT && symbol !== DASH) throw new TypeError(`Not a mark: ${JSON.stringify(symbol)}`)
-      beginMark(at)
-      padsHeld++
-      set({ symbols: [...state.symbols, symbol], isPadDown: true })
-    },
-
-    releasePad(at = performance.now()) {
-      if (padsHeld === 0) return
-      padsHeld--
-      if (padsHeld > 0) return
-      set({ isPadDown: false })
-      endMark(at)
-    },
-
-    /** End the current word now instead of waiting for the silence. */
-    breakWord() {
-      if (holding()) return
-      gapTimers.forEach(clearTimeout)
-      gapTimers = []
-      setSymbols(appendGap(state.symbols, WORD_GAP))
-    },
-
-    /** Let go of anything held without sending it (mode switch, window blur). */
-    cancel(at = performance.now()) {
-      if (!holding()) return
-      keyPressedAt = null
-      padsHeld = 0
-      clearTimeout(dashTimer)
-      set({ isKeyDown: false, isPadDown: false, dashFormed: false })
-      if (state.symbols.length === 0) set({ startedAt: null })
-      else endMark(at)
-    },
-
-    /** Close off the transmission, counting anything still held, and return it. */
-    finish(at = performance.now()) {
-      if (keyPressedAt !== null) actions.releaseKey(at)
-      if (padsHeld > 0) {
-        padsHeld = 0
-        set({ isPadDown: false, endedAt: at })
-      }
-      clearTimers()
-      setSymbols(appendGap(state.symbols, LETTER_GAP))
-      return state
-    },
-
-    reset() {
-      clearTimers()
-      keyPressedAt = null
-      padsHeld = 0
-      lastMarkEnd = null
-      set(INITIAL_STATE)
-    },
-  }
-
-  return {
-    actions,
-    getState: () => state,
-    subscribe(listener) {
-      listeners.add(listener)
-      return () => listeners.delete(listener)
-    },
-    setConfig(next) {
-      config = next
-    },
-    dispose: clearTimers,
-  }
+function isTypingTarget(target) {
+  return target instanceof Element && target.closest('input, textarea, select, [contenteditable="true"]') !== null
 }

@@ -61,3 +61,15 @@ describe('isSendable', () => {
     expect(isSendable('—')).toBe(false)
   })
 })
+
+describe('normalize keep option', () => {
+  it('retains listed characters that have no Morse code', () => {
+    expect(normalize('E#T ★', { keep: '#' })).toBe('E#T')
+    expect(normalize('E#T')).toBe('ET')
+  })
+
+  it('tolerates non-string input', () => {
+    expect(normalize(null)).toBe('')
+    expect(normalize(undefined)).toBe('')
+  })
+})

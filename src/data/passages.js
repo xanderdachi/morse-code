@@ -1,8 +1,10 @@
+// Bundled fallback passages (tier 1), used when Supabase is unreachable.
 // Short public-domain and oral-tradition passages, shortest first.
 
 export const passages = [
   {
     id: 'hamlet',
+    tier: 1,
     title: 'Hamlet',
     author: 'William Shakespeare',
     culture: 'England',
@@ -12,6 +14,7 @@ export const passages = [
   },
   {
     id: 'one-hand',
+    tier: 1,
     title: 'Zen koan',
     author: 'Hakuin Ekaku',
     culture: 'Japan',
@@ -21,6 +24,7 @@ export const passages = [
   },
   {
     id: 'petit-a-petit',
+    tier: 1,
     title: 'French proverb',
     author: 'Oral tradition',
     culture: 'France',
@@ -30,6 +34,7 @@ export const passages = [
   },
   {
     id: 'old-pond',
+    tier: 1,
     title: 'Frog haiku',
     author: 'Matsuo Basho',
     culture: 'Japan',
@@ -39,6 +44,7 @@ export const passages = [
   },
   {
     id: 'hope',
+    tier: 1,
     title: '“Hope” is the thing with feathers',
     author: 'Emily Dickinson',
     culture: 'United States',
@@ -49,6 +55,7 @@ export const passages = [
   },
   {
     id: 'baobab',
+    tier: 1,
     title: 'Ghanaian proverb',
     author: 'Oral tradition',
     culture: 'Ghana',
@@ -58,6 +65,7 @@ export const passages = [
   },
   {
     id: 'certain-kingdom',
+    tier: 1,
     title: 'Folk tale opening',
     author: 'Oral tradition',
     culture: 'Russia',
@@ -67,6 +75,7 @@ export const passages = [
   },
   {
     id: 'analects',
+    tier: 1,
     title: 'The Analects',
     author: 'Confucius',
     culture: 'China',

@@ -1,91 +1,112 @@
 import { describe, expect, it } from 'vitest'
-import {
-  CONFIG,
-  DASH,
-  DOT,
-  LETTER_GAP,
-  WORD_GAP,
-  appendGap,
-  classifyGap,
-  classifyPress,
-  thresholdsMs,
-} from './timing.js'
+import { DASH, DOT } from './symbols.js'
+import { CONFIG, UnitEstimator, chooseStartingUnit, errorGapMs, estimateUnit, pauseGapMs } from './timing.js'
 
 describe('CONFIG', () => {
-  it('defaults to a 120ms unit with dash > 2, letter gap >= 3, word gap >= 7 units', () => {
-    expect(CONFIG).toEqual({ unitMs: 120, dashAfterUnits: 2, letterGapUnits: 3, wordGapUnits: 7 })
-    expect(thresholdsMs()).toEqual({ dash: 240, letterGap: 360, wordGap: 840 })
+  it('holds the specified defaults', () => {
+    expect(CONFIG).toMatchObject({
+      defaultUnitMs: 120,
+      alpha: 0.15,
+      minUnitMs: 40,
+      maxUnitMs: 400,
+      dashAtUnits: 2,
+      intraGapBelowUnits: 2,
+      errorGapUnits: 3,
+      errorGapExtraMs: 250,
+      pauseUnits: 10,
+      pauseMinMs: 2000,
+      minPressMs: 20,
+      maxPressUnits: 10,
+    })
+  })
+
+  it('has no word-boundary threshold', () => {
+    expect(Object.keys(CONFIG).some(key => /word/i.test(key))).toBe(false)
   })
 })
 
-describe('classifyPress', () => {
-  it('treats presses up to and including 2 units as dots', () => {
-    expect(classifyPress(0)).toBe(DOT)
-    expect(classifyPress(120)).toBe(DOT)
-    expect(classifyPress(240)).toBe(DOT)
+describe('thresholds', () => {
+  it('closes an error-path letter at min(3u, u + 250ms)', () => {
+    expect(errorGapMs(40)).toBe(120)
+    expect(errorGapMs(125)).toBe(375)
+    expect(errorGapMs(300)).toBe(550)
   })
 
-  it('treats presses longer than 2 units as dashes', () => {
-    expect(classifyPress(240.5)).toBe(DASH)
-    expect(classifyPress(241)).toBe(DASH)
-    expect(classifyPress(360)).toBe(DASH)
-    expect(classifyPress(5000)).toBe(DASH)
-  })
-
-  it('follows a custom config', () => {
-    const slow = { ...CONFIG, unitMs: 200 }
-    expect(classifyPress(300, slow)).toBe(DOT)
-    expect(classifyPress(401, slow)).toBe(DASH)
+  it('calls a silence a pause beyond max(10u, 2000ms)', () => {
+    expect(pauseGapMs(50)).toBe(2000)
+    expect(pauseGapMs(200)).toBe(2000)
+    expect(pauseGapMs(350)).toBe(3500)
   })
 })
 
-describe('classifyGap', () => {
-  it('keeps short silences inside the current letter', () => {
-    expect(classifyGap(0)).toBeNull()
-    expect(classifyGap(120)).toBeNull()
-    expect(classifyGap(359)).toBeNull()
+describe('UnitEstimator', () => {
+  const estimator = new UnitEstimator(100)
+
+  it('reads a press under 2u as a dot and 2u or more as a dash', () => {
+    expect(estimator.classifyPress(199.9)).toBe(DOT)
+    expect(estimator.classifyPress(200)).toBe(DASH)
   })
 
-  it('ends a letter at exactly 3 units and beyond', () => {
-    expect(classifyGap(360)).toBe(LETTER_GAP)
-    expect(classifyGap(600)).toBe(LETTER_GAP)
-    expect(classifyGap(839)).toBe(LETTER_GAP)
+  it('gives a gap only two meanings: inside a letter, or not', () => {
+    expect(estimator.isIntraGap(199.9)).toBe(true)
+    expect(estimator.isIntraGap(200)).toBe(false)
+    expect(estimator.thresholds()).toEqual({ dash: 200, intraGap: 200, errorGap: 300, pause: 2000, maxPress: 1000 })
   })
 
-  it('ends a word at exactly 7 units and beyond', () => {
-    expect(classifyGap(840)).toBe(WORD_GAP)
-    expect(classifyGap(10_000)).toBe(WORD_GAP)
+  it('learns from dots, and dashes divided by 3', () => {
+    const e = new UnitEstimator(100)
+    e.learnPress(80, DOT)
+    expect(e.unit).toBeCloseTo(97, 10)
+    e.reset()
+    e.learnPress(240, DASH)
+    expect(e.unit).toBeCloseTo(97, 10)
   })
 
-  it('follows a custom config', () => {
-    const wide = { ...CONFIG, letterGapUnits: 4, wordGapUnits: 10 }
-    expect(classifyGap(400, wide)).toBeNull()
-    expect(classifyGap(480, wide)).toBe(LETTER_GAP)
-    expect(classifyGap(1200, wide)).toBe(WORD_GAP)
+  it('learns only from gaps inside a letter, never from boundaries or pauses', () => {
+    const e = new UnitEstimator(100)
+    e.learnGap(120)
+    expect(e.unit).toBeCloseTo(103, 10)
+    const before = e.unit
+    e.learnGap(310) // a letter gap: its length in units is unknown
+    e.learnGap(700) // a word gap
+    e.learnGap(30_000) // a pause
+    expect(e.unit).toBe(before)
+  })
+
+  it('clamps u to [40, 400], including the seed', () => {
+    const fast = new UnitEstimator(100)
+    for (let i = 0; i < 100; i++) fast.learnPress(1, DOT)
+    expect(fast.unit).toBe(40)
+    expect(new UnitEstimator(5000).unit).toBe(400)
+    expect(new UnitEstimator(Number.NaN).unit).toBe(120)
+  })
+
+  it('resets to its calibration, or to a new one', () => {
+    const e = new UnitEstimator(90)
+    e.learnPress(300, DOT)
+    e.reset()
+    expect(e.unit).toBe(90)
+    e.reset(150)
+    e.learnPress(30, DOT)
+    e.reset()
+    expect(e.unit).toBe(150)
   })
 })
 
-describe('appendGap', () => {
-  it('ignores gaps before anything has been sent', () => {
-    const empty = []
-    expect(appendGap(empty, LETTER_GAP)).toBe(empty)
-    expect(appendGap(empty, WORD_GAP)).toBe(empty)
+describe('lock-in', () => {
+  it('estimates u as the median of the 1-unit cluster', () => {
+    expect(estimateUnit([48, 52, 150, 147, 51, 49, 50])).toBe(50)
   })
 
-  it('closes a letter with a single letter gap', () => {
-    const once = appendGap([DOT, DASH], LETTER_GAP)
-    expect(once).toEqual([DOT, DASH, LETTER_GAP])
-    expect(appendGap(once, LETTER_GAP)).toBe(once)
+  it('needs a clear jump between clusters', () => {
+    expect(estimateUnit([])).toBeNull()
+    expect(estimateUnit([100, 110, 95, 105])).toBeNull()
   })
 
-  it('closes a word with a letter gap then a word gap, once', () => {
-    const word = appendGap([DOT], WORD_GAP)
-    expect(word).toEqual([DOT, LETTER_GAP, WORD_GAP])
-    expect(appendGap(word, WORD_GAP)).toBe(word)
-    expect(appendGap(word, LETTER_GAP)).toBe(word)
-  })
-
-  it('upgrades a finished letter to a finished word', () => {
-    expect(appendGap([DASH, LETTER_GAP], WORD_GAP)).toEqual([DASH, LETTER_GAP, WORD_GAP])
+  it('keeps the seed when it agrees with the estimate, and replaces it when it does not', () => {
+    const early = [48, 50, 52, 150, 152, 49]
+    expect(chooseStartingUnit(55, early)).toBe(55)
+    expect(chooseStartingUnit(120, early)).toBe(49.5)
+    expect(chooseStartingUnit(120, [100, 100])).toBe(120)
   })
 })

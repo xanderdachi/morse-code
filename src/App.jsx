@@ -1,74 +1,165 @@
 import { MotionConfig } from 'framer-motion'
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
+import CalibrationModal from './components/CalibrationModal.jsx'
 import DotDashPad from './components/DotDashPad.jsx'
 import InputModeToggle from './components/InputModeToggle.jsx'
+import OnboardingModal from './components/OnboardingModal.jsx'
 import PassageDisplay from './components/PassageDisplay.jsx'
 import PassagePickerModal from './components/PassagePickerModal.jsx'
 import Pip from './components/Pip.jsx'
 import ResultsModal from './components/ResultsModal.jsx'
+import SettingsModal from './components/SettingsModal.jsx'
 import StraightKey from './components/StraightKey.jsx'
+import TierUpModal from './components/TierUpModal.jsx'
+import TouchKeys from './components/TouchKeys.jsx'
 import TransmissionStrip from './components/TransmissionStrip.jsx'
-import { passages } from './data/passages.js'
+import { useCoarsePointer } from './hooks/useCoarsePointer.js'
+import { useDockRoom } from './hooks/useDockRoom.js'
 import { useMorseInput } from './hooks/useMorseInput.js'
+import { useWakeLock } from './hooks/useWakeLock.js'
 import { formatClock } from './lib/format.js'
-import { normalize } from './morse/alphabet.js'
-import { decode } from './morse/decode.js'
+import { loadBoard } from './lib/passages.js'
+import {
+  boardIdsFor,
+  canUndo,
+  isAnchored,
+  isCleared,
+  loadProgress,
+  markOnboardingSeen,
+  recordRun,
+  saveProgress,
+  setAnchoredInput,
+  setBoardIds,
+  setCalibration,
+  setInputMode,
+  setSidetone,
+  setTouchControls,
+  sidetoneOn,
+  tierStatus,
+  usesTouchControls,
+} from './lib/progress.js'
 import { grade } from './morse/grade.js'
-import { isMark } from './morse/timing.js'
+import { wordsPerMinute } from './morse/units.js'
 
-const MODE_STORAGE_KEY = 'morse-club:input-mode'
-const AUTO_FINISH_DELAY_MS = 260
-
-function readStoredMode() {
-  try {
-    return localStorage.getItem(MODE_STORAGE_KEY) === 'pad' ? 'pad' : 'key'
-  } catch {
-    return 'key'
-  }
-}
+// The Finish control appears once this few letters of the passage remain.
+const FINISH_CONTROL_WITHIN = 3
 
 export default function App() {
-  const [passageIndex, setPassageIndex] = useState(0)
-  const [mode, setMode] = useState(readStoredMode)
-  const [modal, setModal] = useState(null) // null | 'results' | 'passages'
+  const [progress, setProgress] = useState(loadProgress)
+  const [board, setBoard] = useState({ tier: null, passages: [], offline: false })
+  const [passageId, setPassageId] = useState(null)
+  // null | 'intro' | 'results' | 'passages' | 'tier-up' | 'complete' | 'settings' | 'calibrate'
+  const [modal, setModal] = useState(progress.onboardingSeen ? null : 'intro')
   const [result, setResult] = useState(null)
-  const input = useMorseInput()
+  const screenRef = useRef(null)
+  const dockRef = useRef(null)
+  const passageRef = useRef(null)
 
-  const passage = passages[passageIndex]
-  const target = useMemo(() => normalize(passage.text), [passage.text])
+  const coarsePointer = useCoarsePointer()
+  const touch = usesTouchControls(progress, coarsePointer)
+  const sidetone = sidetoneOn(progress, touch)
+  const mode = progress.inputMode
+  const anchored = isAnchored(progress)
+  const undoAllowed = anchored && canUndo(progress)
+  const boardLoading = board.tier !== progress.tier
+  const passageIndex = board.passages.findIndex(p => p.id === passageId)
+  const passage = board.passages[passageIndex] ?? null
+  const target = passage?.textMorseSafe ?? ''
   const targetLetters = target.replaceAll(' ', '').length
+  const status = tierStatus(progress, board.passages)
 
-  // Only letters whose closing gap has arrived count as sent.
-  const { symbols } = input
-  const pendingMarks = symbols.length - symbols.findLastIndex(symbol => !isMark(symbol)) - 1
-  const sentSoFar = useMemo(() => decode(symbols.slice(0, symbols.length - pendingMarks)), [symbols, pendingMarks])
-  const lettersSent = sentSoFar.replaceAll(' ', '').length
+  const input = useMorseInput({
+    mode,
+    target,
+    anchored,
+    unitMs: progress.unitMs,
+    enabled: modal === null,
+    undoEnabled: undoAllowed && result === null,
+    sidetone,
+    haptics: true,
+    beforePress: () => {
+      if (!passage) return false
+      resumeIfFinished()
+    },
+    onFinalize: run => gradeRun(run),
+  })
+  const { lettersSent } = input
+
+  // Load the board whenever the tier changes, reusing the passages chosen on
+  // the first visit to this tier. Keep the current passage if it's still on the
+  // board; otherwise start on the first one not yet cleared.
+  const rememberedBoard = useEffectEvent(tier => boardIdsFor(progress, tier))
+  const showBoard = useEffectEvent((tier, { passages, offline, ids }) => {
+    setBoard({ tier, passages, offline })
+    const stored = boardIdsFor(progress, tier)
+    if (ids && (!stored || ids.join() !== stored.join())) commitProgress(setBoardIds(progress, tier, ids))
+    if (!passages.some(p => p.id === passageId)) {
+      setPassageId((passages.find(p => !isCleared(progress, p.id)) ?? passages[0]).id)
+      input.reset()
+    }
+  })
 
   useEffect(() => {
-    try {
-      localStorage.setItem(MODE_STORAGE_KEY, mode)
-    } catch {
-      // Storage unavailable (private mode, blocked): the choice just won't persist.
+    let cancelled = false
+    loadBoard(progress.tier, rememberedBoard(progress.tier)).then(loaded => {
+      if (!cancelled) showBoard(progress.tier, loaded)
+    })
+    return () => {
+      cancelled = true
     }
-  }, [mode])
+  }, [progress.tier])
 
-  function finish() {
-    const run = input.finish()
-    if (run.symbols.length === 0) return
-    const sent = decode(run.symbols)
-    const elapsedMs = run.endedAt - run.startedAt
-    setResult({ ...grade({ target, sent, elapsedMs }), sent, elapsedMs, mode })
+  function commitProgress(next) {
+    setProgress(saveProgress(next))
+  }
+
+  // Grade a run once it is finalized, however it ended: the settle silence, a
+  // long pause, or the Finish control. Input is already discarded by then.
+  function gradeRun(run) {
+    if (!passage || result) return
+    if (run.letters.length === 0) {
+      startOver()
+      return
+    }
+    const graded = grade({ target, sent: run.text, elapsedMs: run.elapsedMs, letterUnits: run.letterUnits })
+    const outcome = recordRun(progress, {
+      passageId: passage.id,
+      accuracy: Math.round(graded.accuracy),
+      board: board.passages,
+    })
+    commitProgress(outcome.progress)
+    setResult({
+      ...graded,
+      elapsedMs: run.elapsedMs,
+      pausedMs: run.pausedMs,
+      anchored: run.anchored,
+      // The raw keystroke log, for replaying the decode or verifying a score later. Not sent anywhere.
+      log: run.log,
+      anomalies: run.anomalies,
+      mode,
+      passage,
+      passageNumber: passageIndex + 1,
+      advancedToTier: outcome.advanced ? outcome.progress.tier : null,
+      completedAllTiers: outcome.completed,
+    })
     setModal('results')
   }
 
-  const autoFinish = useEffectEvent(finish)
-  const holding = input.isKeyDown || input.isPadDown
-  const complete = !result && !holding && pendingMarks === 0 && lettersSent > 0 && lettersSent >= targetLetters
-  useEffect(() => {
-    if (!complete) return
-    const timer = setTimeout(() => autoFinish(), AUTO_FINISH_DELAY_MS)
-    return () => clearTimeout(timer)
-  }, [complete, lettersSent])
+  const holding = input.isKeyDown || input.padsDown['.'] || input.padsDown['-']
+  const showFinish = passage !== null && result === null && input.remaining <= FINISH_CONTROL_WITHIN
+  // From the first press until the run is graded.
+  const runActive = result === null && (input.startedAt !== null || holding)
+
+  useWakeLock(runActive)
+  useDockRoom({ enabled: touch, screenRef, dockRef, passageRef, layout: mode })
+
+  // The intro can't be opened during a run (Settings disables it), and never renders over one regardless.
+  const introOpen = modal === 'intro' && !runActive
+
+  function closeIntro() {
+    commitProgress(markOnboardingSeen(progress))
+    setModal(null)
+  }
 
   function startOver() {
     input.reset()
@@ -80,36 +171,72 @@ export default function App() {
     if (result) startOver()
   }
 
-  function pickPassage(index) {
-    setPassageIndex(index)
+  function pickPassage(id) {
+    setPassageId(id)
     startOver()
     setModal(null)
   }
 
-  function changeMode(next) {
-    if (next === mode) return
-    input.cancel()
-    setMode(next)
+  // The next passage after the current one that isn't cleared yet, wrapping.
+  function nextPassageId() {
+    const list = board.passages
+    for (let step = 1; step <= list.length; step++) {
+      const candidate = list[(passageIndex + step) % list.length]
+      if (!isCleared(progress, candidate.id)) return candidate.id
+    }
+    return list[(passageIndex + 1) % list.length].id
   }
 
-  const keyboardEnabled = modal === null
-  const percent = result ? Math.round(result.accuracy * 100) : null
+  function leaveResults() {
+    setModal(result?.advancedToTier ? 'tier-up' : result?.completedAllTiers ? 'complete' : null)
+  }
+
+  function changeMode(next) {
+    if (next !== mode) commitProgress(setInputMode(progress, next))
+  }
+
+  function changeAnchoring(next) {
+    startOver()
+    commitProgress(setAnchoredInput(progress, next))
+  }
+
+  function changeTouchControls(next) {
+    if (next !== progress.touchControls) commitProgress(setTouchControls(progress, next))
+  }
+
+  const percent = result ? Math.round(result.accuracy) : null
 
   let pipLine = 'Ready when you are.'
   if (percent !== null && percent >= 93) pipLine = 'Textbook. Pip is thrilled.'
   else if (percent !== null && percent >= 85) pipLine = 'Nice hand!'
-  else if (!result && symbols.length > 0) pipLine = 'Keep it coming.'
+  else if (!result && input.paused) pipLine = 'Take your time.'
+  else if (!result && input.strip.length > 0) pipLine = 'Keep it coming.'
 
   let lampLabel = 'idle'
   if (input.isKeyDown) lampLabel = input.dashFormed ? 'sending — dash forming' : 'sending — dot forming'
-  else if (input.isPadDown) lampLabel = 'mark'
+  else if (holding) lampLabel = 'mark'
+  else if (!result && input.paused) lampLabel = 'paused'
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className="relative min-h-screen overflow-x-hidden bg-paper text-ink">
+      {/* With touch controls the practice screen is its own scroller, so nothing chains to the page or pulls to refresh. */}
+      <div
+        ref={screenRef}
+        className={
+          touch
+            ? 'fixed inset-0 overflow-x-hidden overflow-y-auto overscroll-contain bg-paper text-ink'
+            : 'relative min-h-screen overflow-x-hidden bg-paper text-ink'
+        }
+      >
         <Backdrop />
 
-        <div className="relative z-1 mx-auto flex w-full max-w-[1120px] flex-col gap-[18px] px-4 pb-10 pt-5 sm:px-10 sm:pb-[66px] sm:pt-12">
+        <div
+          className={`relative z-1 mx-auto flex w-full max-w-[1120px] flex-col gap-[18px] pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(2.5rem,env(safe-area-inset-left))] sm:pr-[max(2.5rem,env(safe-area-inset-right))] ${
+            touch
+              ? 'pb-[calc(var(--dock-room,0px)+28px)] pt-[calc(env(safe-area-inset-top)+20px)] sm:pt-[calc(env(safe-area-inset-top)+32px)]'
+              : 'pb-10 pt-5 sm:pb-[66px] sm:pt-12'
+          }`}
+        >
           <header className="flex flex-wrap items-center gap-3">
             <div className="mr-auto flex items-center gap-2.5">
               <span
@@ -120,69 +247,72 @@ export default function App() {
               </span>
               <h1 className="text-[24px] font-extrabold leading-none tracking-[-.01em]">Morse Club</h1>
             </div>
+            <span className="rounded-full bg-paper-2 px-[13px] py-[7px] text-[12px] font-bold text-ink-soft">
+              Tier {status.tier} — {status.cleared}/{status.total} cleared
+            </span>
+            <button
+              type="button"
+              onClick={() => setModal('settings')}
+              className="rounded-full border-2 border-edge bg-card px-[15px] py-[9px] text-[13.5px] font-bold text-ink shadow-card active:translate-y-1 active:shadow-none"
+            >
+              Setup
+            </button>
             <button
               type="button"
               onClick={() => setModal('passages')}
               className="flex items-center gap-2 rounded-full bg-secondary px-4 py-[9px] text-[13.5px] font-bold text-on-secondary shadow-button active:translate-y-1 active:shadow-none"
             >
-              <span className="text-[11px] tracking-[.1em] opacity-75">NO. {passageIndex + 1}</span>
-              <span>{passage.title}</span>
+              <span className="text-[11px] tracking-[.1em] opacity-75">NO. {passage ? passageIndex + 1 : '–'}</span>
+              <span>{passage?.title ?? 'Loading passages'}</span>
             </button>
           </header>
 
           <main className="flex flex-col gap-[18px]">
             <div className="flex min-w-0 flex-col gap-3.5">
-              <PassageDisplay passage={passage} lettersSent={lettersSent} />
-              <RunStats
-                startedAt={input.startedAt}
-                result={result}
-                lettersSent={lettersSent}
-                targetLetters={targetLetters}
-                charsSent={sentSoFar.length}
-              />
+              <PassageDisplay passage={passage} lettersSent={lettersSent} compact={touch} idle={!runActive} ref={passageRef} />
+              <RunStats input={input} holding={holding} result={result} targetLetters={targetLetters} />
             </div>
 
             <div className="flex min-w-0 flex-col gap-3.5">
-              <TransmissionStrip symbols={symbols} />
+              <TransmissionStrip strip={input.strip} lite={touch} />
 
               <div className="flex flex-col items-center gap-3.5 rounded-card border-2 border-edge bg-card px-[18px] pb-5 pt-[18px] shadow-card">
                 <InputModeToggle mode={mode} onChange={changeMode} />
                 <Lamp on={holding} label={lampLabel} />
 
-                {mode === 'key' ? (
-                  <StraightKey
-                    isDown={input.isKeyDown}
-                    dashFormed={input.dashFormed}
-                    keyboardEnabled={keyboardEnabled}
-                    onPress={at => {
-                      resumeIfFinished()
-                      input.pressKey(at)
-                    }}
-                    onRelease={input.releaseKey}
-                    onCancel={input.cancel}
-                  />
+                {touch ? (
+                  // The keys themselves float at the bottom of the screen.
+                  <p className="max-w-[260px] text-center text-[12.5px] font-semibold text-pretty text-ink-soft">
+                    {mode === 'key' ? 'Short press makes a dot, long press makes a dash.' : 'Dot on the left, dash on the right.'}
+                  </p>
+                ) : mode === 'key' ? (
+                  <StraightKey isDown={input.isKeyDown} dashFormed={input.dashFormed} keyProps={input.keyProps} />
                 ) : (
-                  <DotDashPad
-                    keyboardEnabled={keyboardEnabled}
-                    onPress={(symbol, at) => {
-                      resumeIfFinished()
-                      input.pressPad(symbol, at)
-                    }}
-                    onRelease={input.releasePad}
-                    onWordBreak={input.breakWord}
-                    onCancel={input.cancel}
-                  />
+                  <DotDashPad padsDown={input.padsDown} padProps={input.padProps} letterProps={input.letterProps} />
                 )}
 
                 <div className="flex w-full flex-wrap justify-center gap-2.5">
-                  <button
-                    type="button"
-                    onClick={finish}
-                    disabled={symbols.length === 0 || result !== null}
-                    className="flex-[1_1_130px] rounded-full bg-accent px-5 py-[13px] text-[15px] font-extrabold text-on-accent shadow-button active:translate-y-[5px] active:shadow-none"
-                  >
-                    Send it
-                  </button>
+                  {/* The Finish control: near the end only. Silence alone always ends a run too. */}
+                  {showFinish && (
+                    <button
+                      type="button"
+                      onClick={input.finish}
+                      disabled={input.strip.length === 0}
+                      className="flex-[1_1_130px] rounded-full bg-accent px-5 py-[13px] text-[15px] font-extrabold text-on-accent shadow-button active:translate-y-[5px] active:shadow-none"
+                    >
+                      Send it
+                    </button>
+                  )}
+                  {undoAllowed && (
+                    <button
+                      type="button"
+                      onClick={input.undo}
+                      disabled={input.strip.length === 0 || result !== null}
+                      className="rounded-full border-2 border-edge bg-transparent px-[18px] py-[13px] text-[14px] font-bold text-ink-soft active:translate-y-[3px]"
+                    >
+                      Undo
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={startOver}
@@ -205,33 +335,105 @@ export default function App() {
             </div>
           </main>
 
-          <p className="text-center text-[11.5px] font-medium tracking-[.02em] text-ink-soft pointer-coarse:hidden">
-            {mode === 'key' ? 'Keyboard: hold space for the key' : 'Keyboard: . for dot, - for dash, space between words'}
-          </p>
+          <div className="flex flex-col items-center gap-1.5">
+            {board.offline && (
+              <p role="status" className="flex items-center gap-2 text-[11.5px] font-medium tracking-[.02em] text-ink-soft">
+                <span aria-hidden="true" className="size-2 rounded-full bg-ink-soft opacity-50" />
+                Offline: playing the built-in passages.
+              </p>
+            )}
+            {!touch && (
+              <p className="text-center text-[11.5px] font-medium tracking-[.02em] text-ink-soft">
+                {mode === 'key' ? 'Keyboard: hold space for the key' : 'Keyboard: . for dot, - for dash, space to end a letter'}
+                {undoAllowed && ', backspace to undo'}
+              </p>
+            )}
+          </div>
         </div>
-
-        <ResultsModal
-          open={modal === 'results'}
-          onClose={() => setModal(null)}
-          result={result}
-          passage={passage}
-          passageNumber={passageIndex + 1}
-          onNext={() => pickPassage((passageIndex + 1) % passages.length)}
-          onRetry={() => pickPassage(passageIndex)}
-        />
-        <PassagePickerModal
-          open={modal === 'passages'}
-          onClose={() => setModal(null)}
-          passages={passages}
-          currentIndex={passageIndex}
-          onPick={pickPassage}
-        />
       </div>
+
+      {touch && (
+        <TouchKeys
+          docked
+          ref={dockRef}
+          mode={mode}
+          isDown={input.isKeyDown}
+          dashFormed={input.dashFormed}
+          padsDown={input.padsDown}
+          keyProps={input.keyProps}
+          padProps={input.padProps}
+          letterProps={input.letterProps}
+        />
+      )}
+
+      <ResultsModal
+        open={modal === 'results'}
+        onClose={leaveResults}
+        result={result}
+        onNext={() => (result?.advancedToTier || result?.completedAllTiers ? leaveResults() : pickPassage(nextPassageId()))}
+        onRetry={() => pickPassage(result.passage.id)}
+      />
+      <TierUpModal
+        open={modal === 'tier-up' || modal === 'complete'}
+        tier={result?.advancedToTier ?? progress.tier}
+        complete={modal === 'complete'}
+        onClose={() => {
+          startOver()
+          setModal(null)
+        }}
+      />
+      <SettingsModal
+        open={modal === 'settings'}
+        onClose={() => setModal(null)}
+        mode={mode}
+        onModeChange={changeMode}
+        unitMs={progress.unitMs}
+        tier={progress.tier}
+        anchoredInput={anchored}
+        onAnchoredChange={changeAnchoring}
+        onCalibrate={() => setModal('calibrate')}
+        onClearCalibration={() => commitProgress(setCalibration(progress, null))}
+        touchControls={progress.touchControls}
+        onTouchControlsChange={changeTouchControls}
+        coarsePointer={coarsePointer}
+        sidetone={sidetone}
+        onSidetoneChange={on => commitProgress(setSidetone(progress, on))}
+        onShowIntro={runActive ? null : () => setModal('intro')}
+      />
+      <OnboardingModal
+        open={introOpen}
+        onClose={closeIntro}
+        touch={touch}
+        mode={mode}
+        unitMs={progress.unitMs}
+        sidetone={sidetone}
+      />
+      <CalibrationModal
+        open={modal === 'calibrate'}
+        onClose={() => setModal('settings')}
+        currentUnitMs={progress.unitMs}
+        sidetone={sidetone}
+        touch={touch}
+        onSave={unitMs => {
+          commitProgress(setCalibration(progress, unitMs))
+          setModal('settings')
+        }}
+      />
+      <PassagePickerModal
+        open={modal === 'passages'}
+        onClose={() => setModal(null)}
+        passages={board.passages}
+        loading={boardLoading}
+        currentId={passageId}
+        isCleared={id => isCleared(progress, id)}
+        onPick={pickPassage}
+      />
     </MotionConfig>
   )
 }
 
-function RunStats({ startedAt, result, lettersSent, targetLetters, charsSent }) {
+function RunStats({ input, holding, result, targetLetters }) {
+  const { startedAt, lastEnd, pausedMs, pauseAfterMs, lettersSent, letterUnits } = input
   const running = startedAt !== null && result === null
   const [now, setNow] = useState(() => performance.now())
 
@@ -243,8 +445,10 @@ function RunStats({ startedAt, result, lettersSent, targetLetters, charsSent }) 
     return () => clearInterval(interval)
   }, [running])
 
-  const elapsedMs = result ? result.elapsedMs : running ? Math.max(0, now - startedAt) : 0
-  const liveWpm = elapsedMs > 1200 ? charsSent / 5 / (elapsedMs / 60_000) : 0
+  // The clock stops once a silence passes the pause threshold, and never runs backwards.
+  const pausingNow = running && !holding && lastEnd !== null ? Math.max(0, now - lastEnd - pauseAfterMs) : 0
+  const elapsedMs = result ? result.elapsedMs : running ? Math.max(0, now - startedAt - pausedMs - pausingNow) : 0
+  const liveWpm = elapsedMs > 1200 ? wordsPerMinute(letterUnits, elapsedMs) : 0
   const wpm = Math.round(result ? result.wpm : liveWpm)
   const progress = Math.min(100, Math.round((100 * lettersSent) / Math.max(1, targetLetters)))
 
@@ -311,7 +515,7 @@ const DRIFTERS = [
   { color: 'bg-primary', alt: true, style: { bottom: '3%', left: '52%', width: 48, height: 18, opacity: 0.2 }, duration: 33, delay: 4 },
 ]
 
-function Backdrop() {
+const Backdrop = memo(function Backdrop() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
       {DRIFTERS.map(({ color, alt, style, duration, delay = 0 }, i) => (
@@ -323,4 +527,4 @@ function Backdrop() {
       ))}
     </div>
   )
-}
+})
