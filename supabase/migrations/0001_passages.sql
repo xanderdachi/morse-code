@@ -48,10 +48,13 @@ grant select on public.passages to anon, authenticated;
 --   accuracy      int not null check (accuracy between 0 and 100),
 --   wpm           numeric(5,1) not null check (wpm >= 0),
 --   input_mode    text not null check (input_mode in ('key', 'pad')),
+--   -- Iambic keying is machine-timed: its runs rank in their own division, never mixed with the rest.
+--   division      text not null check (division in ('straight-key', 'pad-manual', 'pad-iambic')),
+--   keyer_wpm     int check (keyer_wpm between 5 and 40),  -- set for pad-iambic only
 --   created_at    timestamptz not null default now()
 -- );
 --
--- create index scores_passage_created_idx on public.scores (passage_id, created_at desc);
+-- create index scores_passage_division_created_idx on public.scores (passage_id, division, created_at desc);
 --
 -- alter table public.scores enable row level security;
 -- grant select, insert on public.scores to anon, authenticated;

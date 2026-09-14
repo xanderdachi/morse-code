@@ -7,7 +7,7 @@ import StraightKey from './StraightKey.jsx'
 import TransmissionStrip from './TransmissionStrip.jsx'
 
 /** Key PARIS once on the straight key; offers the measured dot length to save. */
-export default function CalibrationModal({ open, onClose, onSave, currentUnitMs, sidetone = false, touch = false }) {
+export default function CalibrationModal({ open, onClose, onSave, currentUnitMs, errorGapUnits, sidetone = false, touch = false }) {
   const titleId = useId()
   const [outcome, setOutcome] = useState(null) // null while listening, then calibrate()'s result
   const listening = open && outcome === null
@@ -17,12 +17,13 @@ export default function CalibrationModal({ open, onClose, onSave, currentUnitMs,
   const input = useMorseInput({
     mode: 'key',
     target: CALIBRATION_TEXT,
+    errorGapUnits,
     enabled: listening,
     sidetone,
     haptics: true,
     beforePress: () => listening,
     onFinalize: run => {
-      if (listening) setOutcome(calibrate(run.log))
+      if (listening) setOutcome(calibrate(run.log, { errorGapUnits }))
     },
   })
 

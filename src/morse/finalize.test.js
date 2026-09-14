@@ -5,6 +5,10 @@ import { createKeyer, interpret } from './keyer.js'
 import { synthesizeKeying } from './testing/syntheticKeyer.js'
 import { CONFIG, pauseGapMs, settleGapMs } from './timing.js'
 import { unitMsForWpm } from './units.js'
+import { leniencyFor } from '../lib/progress.js'
+
+// The error path's letter gap, from the leniency table as the app uses it.
+const { errorGapUnits } = leniencyFor(1)
 
 const TEXT = 'In a certain kingdom, in a certain land, there lived a Tsar.' // ends with "."
 const WPM = 18
@@ -39,7 +43,7 @@ function waitInSilence(keyer, from, until, { lateMs = 0 } = {}) {
 }
 
 function runOf(keyedText, { target = TEXT, codeFor, wpm = WPM, anchored = true } = {}) {
-  const keyer = createKeyer({ target, anchored, unitMs: unitMsForWpm(wpm) })
+  const keyer = createKeyer({ errorGapUnits, target, anchored, unitMs: unitMsForWpm(wpm) })
   const log = synthesizeKeying(keyedText, { wpm, codeFor })
   feed(keyer, log)
   return { keyer, log, lastUp: log.at(-1).t }
@@ -119,7 +123,7 @@ describe('finalize on silence, whatever was sent', () => {
     expect(keyer.tick(due - 1)).toBe(false)
     expect(keyer.finalized).toBe(false)
     expect(keyer.tick(due + 30_000)).toBe(true)
-    expect(keyer.state(due + 30_000).elapsedMs).toBe(interpret(synthesizeKeying(TEXT, { wpm: WPM }), { target: TEXT, final: true }).elapsedMs)
+    expect(keyer.state(due + 30_000).elapsedMs).toBe(interpret(synthesizeKeying(TEXT, { wpm: WPM }), { errorGapUnits, target: TEXT, final: true }).elapsedMs)
   })
 })
 
@@ -150,7 +154,7 @@ describe('after finalize', () => {
     const { keyer, lastUp } = runOf(TEXT)
     const run = keyer.finish(lastUp + 100)
     const tampered = [...run.log, { type: 'down', t: lastUp + 500 }, { type: 'up', t: lastUp + 800 }]
-    const replayed = interpret(tampered, { target: TEXT })
+    const replayed = interpret(tampered, { errorGapUnits, target: TEXT })
     expect(replayed.finalized).toBe(true)
     expect(replayed.text).toBe(run.text)
     expect(replayed.elapsedMs).toBe(run.elapsedMs)
@@ -163,7 +167,7 @@ describe('the silence that ends a run never counts', () => {
     const settled = waitInSilence(stopDead.keyer, stopDead.lastUp, stopDead.lastUp + 60_000)
     const quick = stopDead.keyer.state(settled.now)
 
-    const lingering = createKeyer({ target: TEXT, unitMs: U })
+    const lingering = createKeyer({ errorGapUnits, target: TEXT, unitMs: U })
     const log = synthesizeKeying(TEXT, { wpm: WPM })
     feed(lingering, log)
     const slow = lingering.finish(log.at(-1).t + 5000)
@@ -209,7 +213,7 @@ describe('overrun', () => {
 describe('Finish control', () => {
   it('ends the run immediately, committing a letter in progress as sent, # if it is no code', () => {
     // "..--" is on the way to ? (..--..) but is not a letter itself.
-    const keyer = createKeyer({ target: '?', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: '?', unitMs: 100 })
     feed(keyer, synthesizeKeying('?', { wpm: 12, codeFor: () => '..--' }))
     expect(keyer.state(3000).letters).toEqual([])
     const run = keyer.finish(3000)

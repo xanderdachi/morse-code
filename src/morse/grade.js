@@ -18,6 +18,8 @@ import { WORD_SPACE_UNITS, characterUnits, textUnits, wordsPerMinute } from './u
  *   elapsedMs    sending time: first press to last release, pauses excluded
  *   letterUnits  PARIS units of the letters actually keyed; estimated from
  *                `sent` if omitted
+ *   extraDeletions  letters to grade as missed on top of the alignment (a letter
+ *                the operator took back where the tier makes that cost)
  *
  * Returns:
  *   accuracy      matches ÷ compareTarget length × 100, in [0, 100]
@@ -26,9 +28,9 @@ import { WORD_SPACE_UNITS, characterUnits, textUnits, wordsPerMinute } from './u
  *   effectiveWpm  the same, counting only letters that came through correctly
  *   ops           [{ op: 'match' | 'substitute' | 'insert' | 'delete', expected, actual }]
  *   review        ops grouped into the passage's words, for the character review
- *   counts        how many of each op
+ *   counts        how many of each op, extra deletions included
  */
-export function grade({ target, sent, elapsedMs = 0, letterUnits }) {
+export function grade({ target, sent, elapsedMs = 0, letterUnits, extraDeletions = 0 }) {
   const spaced = normalize(target)
   const compareTarget = spaced.replaceAll(' ', '')
   const received = normalize(sent, { keep: UNKNOWN_CHAR }).replaceAll(' ', '')
@@ -36,13 +38,15 @@ export function grade({ target, sent, elapsedMs = 0, letterUnits }) {
 
   const counts = { match: 0, substitute: 0, insert: 0, delete: 0 }
   for (const { op } of ops) counts[op]++
+  const penalty = Math.max(0, Math.floor(extraDeletions) || 0)
+  counts.delete += penalty
 
   const accuracy =
     compareTarget.length === 0
       ? received.length === 0
         ? 100
         : 0
-      : Math.min(100, Math.max(0, (100 * counts.match) / compareTarget.length))
+      : Math.min(100, Math.max(0, (100 * (counts.match - penalty)) / compareTarget.length))
 
   // Word breaks: which target letters start a new word, and how many spaces the sending passed.
   const startsWord = []
@@ -77,6 +81,7 @@ export function grade({ target, sent, elapsedMs = 0, letterUnits }) {
     ops,
     review: review.filter(word => word.length > 0),
     counts,
+    extraDeletions: penalty,
     target: compareTarget,
     sent: received,
     unitsSent: units,

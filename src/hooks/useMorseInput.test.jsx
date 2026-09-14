@@ -2,8 +2,12 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { useLayoutEffect } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { leniencyFor } from '../lib/progress.js'
+import { unitMsForWpm } from '../morse/units.js'
 import { mockClock } from '../testing/dom.js'
 import { useMorseInput } from './useMorseInput.js'
+
+const { errorGapUnits } = leniencyFor(1)
 
 let clock
 let input
@@ -14,12 +18,13 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   delete document.visibilityState
 })
 
 function Harness(options) {
-  const live = useMorseInput({ target: 'PARIS', ...options })
+  const live = useMorseInput({ target: 'PARIS', errorGapUnits, ...options })
   useLayoutEffect(() => {
     input = live
   })
@@ -188,5 +193,77 @@ describe('several pointers', () => {
     const { key } = setup()
     fire(key, 'pointerdown', { pointerId: 1, button: 2, pointerType: 'mouse' }, 10_000)
     expect(input.isKeyDown).toBe(false)
+  })
+})
+
+describe('iambic pad', () => {
+  const WPM = 20
+  const u = unitMsForWpm(WPM) // 60 ms
+
+  // Iambic elements come off the keyer's own timer: fake timers, driven with the mocked clock.
+  function setupIambic() {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    return setup({ mode: 'pad', keyerMode: 'iambic', keyerWpm: WPM })
+  }
+
+  const elements = () => presses(clock.now + 5000).map(({ pad, start, durationMs }) => ({ pad, start, durationMs }))
+
+  it('generates perfectly timed elements while a paddle is held, and shows the paddle held', () => {
+    const { dot } = setupIambic()
+    down(dot, 1, 10_000)
+    expect(input.padsDown).toEqual({ '.': true, '-': false })
+    clock.wait(5 * 2 * u - 20) // part way into the fifth period
+    up(dot, 1, clock.now)
+    expect(input.padsDown).toEqual({ '.': false, '-': false })
+    clock.wait(10 * u)
+    expect(elements()).toEqual([0, 1, 2, 3, 4].map(i => ({ pad: '.', start: 10_000 + i * 2 * u, durationMs: u })))
+  })
+
+  it('feeds a squeeze through as alternating elements', () => {
+    const { dot, dash } = setupIambic()
+    down(dot, 1, 10_000)
+    down(dash, 2, 10_010)
+    clock.wait(9 * u)
+    up(dot, 1, clock.now)
+    up(dash, 2, clock.now)
+    clock.wait(10 * u)
+    expect(elements().map(element => element.pad).join('')).toMatch(/^\.-\.-/)
+  })
+
+  for (const [how, letGo] of [
+    ['a paddle release', ({ dot }) => up(dot, 1, clock.now)],
+    ['a pointercancel', ({ dot }) => fire(dot, 'pointercancel', { pointerId: 1 }, clock.now)],
+    ['window blur', () => fire(window, 'blur', {}, clock.now)],
+    [
+      'a hidden page',
+      () => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' })
+        fire(document, 'visibilitychange', {}, clock.now)
+      },
+    ],
+  ]) {
+    it(`stops generating within one element period of ${how}`, () => {
+      const keys = setupIambic()
+      down(keys.dot, 1, 10_000)
+      clock.wait(3 * 2 * u + u / 2) // half way through the fourth dot
+      const stoppedAt = clock.now
+      letGo(keys)
+      clock.wait(20 * u)
+      const sent = elements()
+      expect(sent.at(-1).start).toBeLessThanOrEqual(stoppedAt)
+      expect(sent.at(-1).start + 2 * u).toBeGreaterThan(stoppedAt)
+      expect(input.padsDown).toEqual({ '.': false, '-': false })
+    })
+  }
+
+  it('lets a squeeze released with a pointercancel end without a Mode B element', () => {
+    const { dot, dash } = setupIambic()
+    down(dot, 1, 10_000)
+    down(dash, 2, 10_010)
+    clock.wait(3 * u) // in the dash (2u..5u)
+    fire(dot, 'pointercancel', { pointerId: 1 }, clock.now)
+    fire(dash, 'pointercancel', { pointerId: 2 }, clock.now)
+    clock.wait(20 * u)
+    expect(elements().map(element => element.pad).join('')).toBe('.-')
   })
 })

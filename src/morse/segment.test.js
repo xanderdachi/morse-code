@@ -4,6 +4,10 @@ import { grade } from './grade.js'
 import { createKeyer, interpret } from './keyer.js'
 import { gapCenters, segmentSymbols } from './segment.js'
 import { synthesizeKeying } from './testing/syntheticKeyer.js'
+import { leniencyFor } from '../lib/progress.js'
+
+// The error path's letter gap, from the leniency table as the app uses it.
+const { errorGapUnits } = leniencyFor(1)
 
 const PASSAGES = [
   'To be, or not to be.',
@@ -15,7 +19,7 @@ const PASSAGES = [
 ]
 
 const lettersOf = text => normalize(text).replaceAll(' ', '').toUpperCase()
-const unanchored = (text, log, options = {}) => interpret(log, { target: text, anchored: false, final: true, ...options })
+const unanchored = (text, log, options = {}) => interpret(log, { errorGapUnits, target: text, anchored: false, final: true, ...options })
 
 describe('unanchored: perfect operators', () => {
   for (const wpm of [5, 10, 20, 30]) {
@@ -52,13 +56,13 @@ describe('unanchored: timing noise', () => {
     // H with a 6-unit pause after its second dot is I, I without an anchor.
     const log = synthesizeKeying('H', { wpm: 15, pauses: [{ letter: 0, mark: 2, ms: 6 * 80 }] })
     expect(unanchored('H', log).text).toBe('II')
-    expect(interpret(log, { target: 'H', final: true }).text).toBe('H')
+    expect(interpret(log, { errorGapUnits, target: 'H', final: true }).text).toBe('H')
   })
 })
 
 describe('unanchored: live display', () => {
   it('keeps the last letter open until the silence says it is done', () => {
-    const keyer = createKeyer({ target: 'ET', anchored: false, unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'ET', anchored: false, unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100)
     keyer.keyDown(400)
@@ -75,7 +79,7 @@ describe('unanchored: live display', () => {
   it('regroups earlier marks as more evidence arrives', () => {
     // Two dots 2u apart read as two letters on their own. Once later gaps show
     // this operator's boundaries run about 6u, that 2u gap is inside a letter.
-    const keyer = createKeyer({ target: 'III', anchored: false, unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'III', anchored: false, unitMs: 100 })
     let t = 0
     const dot = gap => {
       t += gap
@@ -103,16 +107,16 @@ describe('segmentSymbols', () => {
     // H E  with gaps [-, 1u, 1u, 1u, 3u]
     const segments = segmentSymbols(['.', '.', '.', '.', '.'], [0, 0, 0, 0, log3])
     expect(segments).toEqual([
-      { start: 0, end: 4 },
-      { start: 4, end: 5 },
+      { start: 0, end: 4, kind: 'letter' },
+      { start: 4, end: 5, kind: 'letter' },
     ])
   })
 
   it('honours forced boundaries', () => {
     const segments = segmentSymbols(['.', '.', '.', '.'], [0, 0, 0, 0], [false, false, true, false])
     expect(segments).toEqual([
-      { start: 0, end: 2 },
-      { start: 2, end: 4 },
+      { start: 0, end: 2, kind: 'letter' },
+      { start: 2, end: 4, kind: 'letter' },
     ])
   })
 
@@ -126,8 +130,8 @@ describe('segmentSymbols', () => {
     const onlyE = code => code === '.'
     const segments = segmentSymbols(['-', '-', '.'], [0, 0, log3], [], { isValid: onlyE })
     expect(segments).toEqual([
-      { start: 0, end: 2 },
-      { start: 2, end: 3 },
+      { start: 0, end: 2, kind: 'unfinished' },
+      { start: 2, end: 3, kind: 'letter' },
     ])
   })
 

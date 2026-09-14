@@ -5,6 +5,10 @@ import { createKeyer, interpret } from './keyer.js'
 import { synthesizeKeying, synthesizeTapping } from './testing/syntheticKeyer.js'
 import { CONFIG, errorGapMs, pauseGapMs } from './timing.js'
 import { unitMsForWpm } from './units.js'
+import { leniencyFor } from '../lib/progress.js'
+
+// The error path's letter gap, from the leniency table as the app uses it.
+const { errorGapUnits } = leniencyFor(1)
 
 const PASSAGES = [
   'To be, or not to be.',
@@ -17,7 +21,7 @@ const PASSAGES = [
 const LONG = 'In a certain kingdom, in a certain land, there lived a Tsar who had three sons and one clever horse.'
 
 const lettersOf = text => normalize(text).replaceAll(' ', '').toUpperCase()
-const finish = (text, log, options = {}) => interpret(log, { target: text, final: true, ...options })
+const finish = (text, log, options = {}) => interpret(log, { errorGapUnits, target: text, final: true, ...options })
 const scoreOf = (text, run) => grade({ target: text, sent: run.text, elapsedMs: run.elapsedMs, letterUnits: run.letterUnits })
 
 /** `text` with letter k (counting letters only) removed, replaced or preceded by an extra letter. */
@@ -38,7 +42,7 @@ function stateAfterLetter(text, log, sent, letterIndex) {
   const marksThrough = [...lettersOf(sent)].slice(0, letterIndex + 1).reduce((n, char) => n + toMorse(char).length, 0)
   const ups = log.filter(event => event.type === 'up')
   const cut = log.indexOf(ups[marksThrough - 1])
-  return interpret(log.slice(0, cut + 1), { target: text, now: log[cut].t })
+  return interpret(log.slice(0, cut + 1), { errorGapUnits, target: text, now: log[cut].t })
 }
 
 describe('anchored: perfect operators', () => {
@@ -80,7 +84,7 @@ describe('anchored: timing no longer decides letters', () => {
 
   it('keeps an unfinished letter waiting through any silence, then commits it the instant it completes', () => {
     const u = 100
-    const keyer = createKeyer({ target: 'HE', unitMs: u })
+    const keyer = createKeyer({ errorGapUnits, target: 'HE', unitMs: u })
     let t = 0
     for (let dot = 0; dot < 3; dot++) {
       keyer.keyDown(t)
@@ -232,7 +236,7 @@ describe('anchored: mistakes stay mistakes', () => {
   })
 
   it('commits a letter still in progress at the end as what was sent', () => {
-    const keyer = createKeyer({ target: 'H', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'H', unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100)
     keyer.keyDown(200)
@@ -242,19 +246,19 @@ describe('anchored: mistakes stay mistakes', () => {
 })
 
 describe('anchored: error path timing', () => {
-  it('waits min(3u, u + 250ms) of silence before closing a wrong letter, and schedules that check', () => {
+  it('waits the leniency table\'s error gap of silence before closing a wrong letter, and schedules that check', () => {
     const u = 100
-    const keyer = createKeyer({ target: 'EE', unitMs: u })
+    const keyer = createKeyer({ errorGapUnits, target: 'EE', unitMs: u })
     keyer.keyDown(0)
     keyer.keyUp(300) // a dash where E is expected: the error path
-    const limit = errorGapMs(u)
+    const limit = errorGapMs(u, errorGapUnits)
     expect(keyer.state(300)).toMatchObject({ letters: [], nextCheckAt: 300 + limit })
     expect(keyer.state(300 + limit - 1).letters).toEqual([])
     expect(keyer.state(300 + limit).text).toBe('T')
   })
 
   it('only schedules the pause check while anchored', () => {
-    const keyer = createKeyer({ target: 'AB', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'AB', unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100) // the first half of A: waiting, no timing involved
     const state = keyer.state(100)
@@ -262,7 +266,7 @@ describe('anchored: error path timing', () => {
   })
 
   it('is complete when the last letter commits', () => {
-    const keyer = createKeyer({ target: 'ET', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'ET', unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100)
     expect(keyer.state(100).complete).toBe(false)
@@ -296,7 +300,7 @@ describe('pad', () => {
   })
 
   it('logs taps with enough detail to replay', () => {
-    const keyer = createKeyer({ target: 'ET' })
+    const keyer = createKeyer({ errorGapUnits, target: 'ET' })
     keyer.padDown('.', 10)
     keyer.padUp('.', 80)
     keyer.commitLetter(120)
@@ -323,7 +327,7 @@ describe('undo', () => {
   }
 
   it('removes the last committed letter and rewinds the cursor', () => {
-    const keyer = createKeyer({ target: 'HE' })
+    const keyer = createKeyer({ errorGapUnits, target: 'HE' })
     for (let i = 0; i < 4; i++) tap(keyer, '.', i * 200)
     tap(keyer, '-', 1000) // T where E is expected
     expect(keyer.state(3000)).toMatchObject({ text: 'HT', cursor: 2 })
@@ -336,7 +340,7 @@ describe('undo', () => {
   })
 
   it('clears a letter still in progress before touching committed ones', () => {
-    const keyer = createKeyer({ target: 'EH' })
+    const keyer = createKeyer({ errorGapUnits, target: 'EH' })
     tap(keyer, '.', 0)
     tap(keyer, '.', 300)
     tap(keyer, '.', 500) // E, then two dots of H
@@ -348,7 +352,7 @@ describe('undo', () => {
   })
 
   it('replays identically from the log', () => {
-    const keyer = createKeyer({ target: 'HE' })
+    const keyer = createKeyer({ errorGapUnits, target: 'HE' })
     for (let i = 0; i < 4; i++) tap(keyer, '.', i * 200)
     tap(keyer, '-', 1000)
     keyer.undo(3100)
@@ -359,9 +363,10 @@ describe('undo', () => {
 })
 
 describe('config', () => {
-  it('uses the specified error-path and pause thresholds', () => {
-    expect(errorGapMs(60)).toBe(180) // 3u
-    expect(errorGapMs(200)).toBe(450) // u + 250
+  it('uses the leniency table\'s error-path gap and the specified pause threshold', () => {
+    expect(errorGapUnits).toBe(2)
+    expect(errorGapMs(60, errorGapUnits)).toBe(120)
+    expect(() => interpret([], { target: 'E' })).toThrow(/leniency table/)
     expect(pauseGapMs(60)).toBe(2000)
     expect(pauseGapMs(300)).toBe(3000)
     expect(CONFIG.minPressMs).toBe(20)

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { hapticTap, sidetone as sharedSidetone } from '../lib/sidetone.js'
+import { createIambicKeyer } from '../morse/iambic.js'
 import { createKeyer } from '../morse/keyer.js'
 import { DASH, DOT } from '../morse/symbols.js'
 import { CONFIG } from '../morse/timing.js'
@@ -33,12 +34,15 @@ const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
  *                  pad: . dot, - dash, Space end letter
  *                  both: Backspace undo, when undo is allowed
  *   target       the passage being sent
+ *   errorGapUnits the error path's letter gap, from the tier's leniency table (required)
  *   anchored     segment letters against the passage (default) or by timing alone
  *   unitMs       the operator's calibrated dot length, or null for the default
+ *   keyerMode    'manual' or 'iambic': in pad mode, whether held pads generate elements
+ *   keyerWpm     the iambic keyer's speed
  *   enabled      listen to the keyboard; turning this off releases anything held
  *   undoEnabled  whether Backspace and undo() do anything
- *   sidetone     sound a tone while the key is down
- *   haptics      buzz briefly on each touch press, where the device can
+ *   sidetone     sound a tone while the key is down (for the iambic keyer, while an element sounds)
+ *   haptics      buzz briefly on each touch press (each generated element, iambic), where the device can
  *   beforePress  called before a new press is accepted; return false to refuse it
  *   onUpdate     called with the live state whenever it changes
  *   onFinalize   called once with the fixed result when the run ends, however it ended
@@ -55,12 +59,20 @@ const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
  * pointercancel, wherever the finger has slid to; a second finger on a held key
  * is ignored, and the two pads are held independently. Losing focus or hiding
  * the page releases everything, timed by that event.
+ *
+ * Iambic: the pads are paddles. Presses and releases go to the iambic keyer
+ * (src/morse/iambic.js) and the elements it generates go into the keyer log at
+ * their exact times; `padsDown` shows the paddles held. A pointercancel, blur
+ * or hidden page stops it outright: no memory, no Mode B element.
  */
 export function useMorseInput({
   mode = 'key',
   target = '',
+  errorGapUnits,
   anchored = true,
   unitMs = null,
+  keyerMode = 'manual',
+  keyerWpm = null,
   enabled = true,
   undoEnabled = false,
   sidetone = false,
@@ -74,7 +86,8 @@ export function useMorseInput({
     optionsRef.current = { beforePress, undoEnabled, sidetone, haptics, onUpdate, onFinalize }
   })
 
-  const [store] = useState(() => createKeyerStore({ unitMs, target, anchored }))
+  const iambic = mode === 'pad' && keyerMode === 'iambic'
+  const [store] = useState(() => createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic, keyerWpm }))
   const [latency] = useState(() => createLatencyProbe({ enabled: MEASURE_LATENCY }))
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
 
@@ -84,11 +97,17 @@ export function useMorseInput({
         update: snapshot => optionsRef.current.onUpdate?.(snapshot),
         finalize: run => optionsRef.current.onFinalize?.(run),
         hold: holding => sharedSidetone.hold(store, holding && optionsRef.current.sidetone),
+        element: source => {
+          if (optionsRef.current.haptics && source !== 'mouse' && source !== 'keyboard') hapticTap()
+        },
       }),
     [store],
   )
 
-  useEffect(() => store.configure({ unitMs, target, anchored }), [store, unitMs, target, anchored])
+  useEffect(
+    () => store.configure({ unitMs, target, anchored, errorGapUnits, iambic, keyerWpm }),
+    [store, unitMs, target, anchored, errorGapUnits, iambic, keyerWpm],
+  )
   useEffect(() => store.dispose, [store])
 
   // Turning the sidetone off mid-press silences it now; unmounting always does.
@@ -112,13 +131,15 @@ export function useMorseInput({
 
     const releaseEverything = t => {
       for (const key of keys) key.forget()
+      store.stopPaddles(t)
       store.releaseAll(t)
     }
 
     // One on-screen key, owned by at most one pointer at a time. The ref
     // attaches its pointerdown listener; releases are matched by pointerId on
     // window, so they arrive wherever the pointer ends up, captured or not.
-    function pointerKey(press, release) {
+    // `cancel` is for a pointercancel: the system took the touch, so let go of everything.
+    function pointerKey(press, release, cancel = release) {
       let owner = null
 
       const onPointerDown = event => {
@@ -127,7 +148,7 @@ export function useMorseInput({
         event.preventDefault()
         if (owner !== null) return // a second finger on a key that's already held
         const t = eventTime(event)
-        if (!pressAllowed() || !press(t)) return
+        if (!pressAllowed() || !press(t, event.pointerType)) return
         owner = event.pointerId
         latency.pressed(t, event.pointerType)
         try {
@@ -136,14 +157,15 @@ export function useMorseInput({
         } catch {
           // The pointer is already gone; the window listener still sees its release.
         }
-        if (optionsRef.current.haptics && event.pointerType !== 'mouse') hapticTap()
+        // The iambic keyer buzzes per element it generates instead.
+        if (optionsRef.current.haptics && event.pointerType !== 'mouse' && !store.iambic) hapticTap()
       }
 
       const key = {
         release(event) {
           if (owner === null || event.pointerId !== owner) return
           owner = null
-          release(eventTime(event))
+          ;(event.type === 'pointercancel' ? cancel : release)(eventTime(event))
         },
         forget() {
           owner = null
@@ -170,12 +192,14 @@ export function useMorseInput({
 
     const straightKey = pointerKey(store.keyDown, store.keyUp)
     const dotKey = pointerKey(
-      t => store.padDown(DOT, t),
-      t => store.padUp(DOT, t),
+      (t, source) => store.paddleDown(DOT, t, source),
+      t => store.paddleUp(DOT, t),
+      t => store.cancelPaddle(DOT, t),
     )
     const dashKey = pointerKey(
-      t => store.padDown(DASH, t),
-      t => store.padUp(DASH, t),
+      (t, source) => store.paddleDown(DASH, t, source),
+      t => store.paddleUp(DASH, t),
+      t => store.cancelPaddle(DASH, t),
     )
 
     return {
@@ -241,7 +265,7 @@ export function useMorseInput({
       const pad = PAD_KEYS[event.key]
       if (pad) {
         event.preventDefault()
-        if (!event.repeat && pressAllowed() && store.padDown(pad, t)) latency.pressed(t, 'key')
+        if (!event.repeat && pressAllowed() && store.paddleDown(pad, t, 'keyboard')) latency.pressed(t, 'key')
       } else if (event.code === 'Space') {
         event.preventDefault()
         if (!event.repeat) store.commitLetter(t)
@@ -258,7 +282,7 @@ export function useMorseInput({
         return
       }
       const pad = PAD_KEYS[event.key]
-      if (pad) store.padUp(pad, t)
+      if (pad) store.paddleUp(pad, t)
       else if (event.code === 'Space') event.preventDefault()
     }
 
@@ -280,14 +304,38 @@ export function useMorseInput({
 }
 
 // The keyer plus a subscription and a re-check timer, shaped for useSyncExternalStore.
-function createKeyerStore({ unitMs, target, anchored }) {
-  const keyer = createKeyer({ unitMs: unitMs ?? CONFIG.defaultUnitMs, target, anchored })
+// With the iambic keyer on, it also owns that keyer and wakes it for each element.
+function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iambicOn, keyerWpm }) {
+  const keyer = createKeyer({ unitMs: unitMs ?? CONFIG.defaultUnitMs, target, anchored, errorGapUnits })
   const listeners = new Set()
-  let snapshot = toSnapshot(keyer.state(performance.now()), null)
+  let iambic = iambicOn ? createIambicKeyer({ wpm: keyerWpm }) : null
+  let iambicTimer = null
+  let paddleSource = null // how the last paddle was pressed, for haptics per element
+  let snapshot = toSnapshot(keyer.state(performance.now()), null, iambic?.paddles)
   let timer = null
   let announced = null // the finalized run the finalize handler was last called with
   let holding = false
   let handlers = {}
+
+  // Hand the keyer every element the iambic keyer has made by now, stamped with its exact time.
+  function flushIambic() {
+    if (!iambic) return
+    for (const event of iambic.advance(performance.now())) {
+      const accepted = event.type === 'down' ? keyer.padDown(event.pad, event.t) : keyer.padUp(event.pad, event.t)
+      if (accepted) syncHolding()
+      if (accepted && event.type === 'down') handlers.element?.(paddleSource)
+    }
+  }
+
+  // Flush, re-read, and sleep until the iambic keyer's next element boundary.
+  function pumpIambic() {
+    clearTimeout(iambicTimer)
+    iambicTimer = null
+    flushIambic()
+    refresh()
+    const next = iambic?.nextEventAt ?? null
+    if (next !== null) iambicTimer = setTimeout(pumpIambic, Math.max(0, next - performance.now()))
+  }
 
   // Tell the delegate when the key goes down or comes up, before anything slower runs.
   function syncHolding() {
@@ -304,7 +352,7 @@ function createKeyerStore({ unitMs, target, anchored }) {
     const result = keyer.update(now)
     syncHolding()
     const previous = snapshot
-    snapshot = toSnapshot(result, snapshot)
+    snapshot = toSnapshot(result, snapshot, iambic?.paddles)
     if (snapshot !== previous) {
       for (const listener of listeners) listener()
     }
@@ -321,10 +369,11 @@ function createKeyerStore({ unitMs, target, anchored }) {
     if (snapshot !== previous) handlers.update?.(snapshot)
   }
 
-  // Record an input; returns whether the keyer accepted it.
+  // Record an input; returns whether the keyer accepted it. Elements already due go in first, in order.
   const act =
     fn =>
     (...args) => {
+      flushIambic()
       const accepted = fn(...args)
       if (accepted) {
         syncHolding()
@@ -350,51 +399,105 @@ function createKeyerStore({ unitMs, target, anchored }) {
 
     keyDown: act(keyer.keyDown),
     keyUp: act(keyer.keyUp),
-    padDown: act(keyer.padDown),
-    padUp: act(keyer.padUp),
     commitLetter: act(keyer.commitLetter),
     undo: act(keyer.undo),
     releaseAll: act(keyer.releaseAll),
 
+    get iambic() {
+      return iambic !== null
+    },
+
+    /** A pad pressed: an element itself (manual), or a paddle for the iambic keyer. */
+    paddleDown(pad, t, source) {
+      if (!iambic) return act(keyer.padDown)(pad, t)
+      if (keyer.finalized || iambic.paddles[pad]) return false
+      paddleSource = source
+      iambic.press(pad, t)
+      pumpIambic()
+      return true
+    },
+
+    paddleUp(pad, t) {
+      if (!iambic) return act(keyer.padUp)(pad, t)
+      iambic.release(pad, t)
+      pumpIambic()
+      return true
+    },
+
+    /** A pointercancel on a pad. The iambic keyer stops outright; a manual pad just lets go. */
+    cancelPaddle(pad, t) {
+      if (!iambic) return act(keyer.padUp)(pad, t)
+      iambic.stop(t)
+      pumpIambic()
+      return true
+    },
+
+    /** Blur, a hidden page, input switched off: the iambic keyer stops, sending nothing more. */
+    stopPaddles(t) {
+      if (!iambic) return
+      iambic.stop(t)
+      pumpIambic()
+    },
+
     /** The Finish control: end the run now, whatever was sent. Returns the result, including its keystroke log. */
     finish() {
-      const run = keyer.finish(performance.now())
+      const now = performance.now()
+      iambic?.stop(now)
+      flushIambic()
+      const run = keyer.finish(now)
       syncHolding()
       refresh()
       return run
     },
 
     reset() {
+      clearTimeout(iambicTimer)
+      iambicTimer = null
+      iambic?.reset()
       keyer.reset()
       syncHolding()
       refresh()
     },
 
-    configure(options) {
+    configure({ iambic: nextIambic, keyerWpm: wpm, ...options }) {
+      if (nextIambic !== (iambic !== null)) {
+        iambic?.stop(performance.now())
+        flushIambic()
+        clearTimeout(iambicTimer)
+        iambicTimer = null
+        iambic = nextIambic ? createIambicKeyer({ wpm }) : null
+      } else if (iambic && wpm) {
+        iambic.setWpm(wpm)
+      }
       keyer.configure({ ...options, unitMs: options.unitMs ?? CONFIG.defaultUnitMs })
       refresh()
     },
 
     dispose() {
       clearTimeout(timer)
+      clearTimeout(iambicTimer)
       timer = null
+      iambicTimer = null
     },
   }
 }
 
 // Only what the UI renders, reusing the previous snapshot when nothing it shows changed.
-function toSnapshot(result, previous) {
+// `paddles`, with the iambic keyer on, stands in for the pads held.
+function toSnapshot(result, previous, paddles) {
   const next = {
     run: result.finalized ? result : null,
     strip: result.strip,
-    lettersSent: result.letters.length,
+    lettersSent: result.lettersSent,
     remaining: result.remaining,
+    scrubbedLetters: result.scrubbedLetters,
+    prosignHeard: result.prosignHeard,
     text: result.text,
     cursor: result.cursor,
     complete: result.complete,
     paused: result.paused,
     isKeyDown: result.isKeyDown,
-    padsDown: result.padsDown,
+    padsDown: paddles ?? result.padsDown,
     dashFormed: result.dashFormed,
     startedAt: result.startedAt,
     lastEnd: result.endedAt,

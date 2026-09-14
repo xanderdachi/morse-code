@@ -56,7 +56,7 @@ function Results({ titleId, result, onNext, onRetry }) {
             {rating.headline}
           </h2>
           <p className="mt-2 text-[14.5px] font-medium leading-[1.45] text-ink-soft">
-            Passage {passageNumber} · {passage.title} · {INPUT_MODES[result.mode]} · {result.anchored ? 'Anchored' : 'Unanchored'}
+            Passage {passageNumber} · {passage.title} · {keyingLabel(result)} · {result.anchored ? 'Anchored' : 'Unanchored'}
           </p>
         </div>
         <Stamp value={rating.grade} label="GRADE" className={rating.stamp} />
@@ -64,12 +64,20 @@ function Results({ titleId, result, onNext, onRetry }) {
 
       <div className="flex flex-wrap gap-3">
         <BigStat label="Accuracy" value={`${percent}%`} />
-        <BigStat label="Words / min" value={Math.round(result.wpm)} />
-        <BigStat label="Effective wpm" value={Math.round(result.effectiveWpm)} />
+        {/* The iambic keyer's speed is chosen, not earned, so it is never reported as the operator's. */}
+        {result.keyerMode === 'iambic' ? (
+          <BigStat label="Iambic keyer" value={`${result.keyerWpm} WPM`} />
+        ) : (
+          <>
+            <BigStat label="Words / min" value={Math.round(result.wpm)} />
+            <BigStat label="Effective wpm" value={Math.round(result.effectiveWpm)} />
+          </>
+        )}
         <BigStat label="Time" value={formatClock(result.elapsedMs)} />
       </div>
       <p className="-mt-2.5 text-[12.5px] font-semibold text-ink-soft">
         Paused {formatClock(result.pausedMs ?? 0)}, not counted in your time.
+        {result.scrubbedLetters > 0 && ` ${scrubbedNote(result)}`}
       </p>
 
       <div className="rounded-panel border-2 border-edge bg-card px-5 py-[18px]">
@@ -138,6 +146,18 @@ function Results({ titleId, result, onNext, onRetry }) {
       </div>
     </div>
   )
+}
+
+// How the run was keyed, for its subtitle: "Iambic, 20 WPM" rather than a measured speed.
+function keyingLabel({ mode, keyerMode, keyerWpm }) {
+  return keyerMode === 'iambic' ? `Iambic, ${keyerWpm} WPM` : INPUT_MODES[mode]
+}
+
+function scrubbedNote({ scrubbedLetters, prosign }) {
+  const letters = scrubbedLetters === 1 ? '1 letter' : `${scrubbedLetters} letters`
+  return prosign === 'deletion'
+    ? `${letters} disregarded with the error prosign, counted as missed at this tier.`
+    : `${letters} disregarded with the error prosign, not counted.`
 }
 
 function BigStat({ label, value }) {

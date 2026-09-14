@@ -17,9 +17,8 @@ export const CONFIG = {
   dashAtUnits: 2, // live estimator: a press this long or longer is a dash
   intraGapBelowUnits: 2, // a gap shorter than this is inside a letter (and teaches u)
 
-  // Error path: the generous letter boundary, min(3u, u + 250ms).
-  errorGapUnits: 3,
-  errorGapExtraMs: 250,
+  // The error path's letter boundary is a leniency rule, not a timing constant:
+  // callers pass errorGapUnits from the tier's leniency table (src/lib/progress.js).
 
   // A silence longer than max(10u, 2000ms) is a pause: the clock stops beyond it.
   pauseUnits: 10,
@@ -32,6 +31,8 @@ export const CONFIG = {
   settleMinMs: 800,
   finishPauseAtEndMs: 10_000,
   finishPauseMidMs: 60_000,
+
+  prosignAckMs: 2500, // how long the error prosign's acknowledgement stays up
 
   minPressMs: 20, // shorter presses are contact bounce and are ignored
   maxPressUnits: 10, // longer presses count as dashes but are flagged and not learned from
@@ -50,9 +51,21 @@ export const CONFIG = {
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
-/** The error path's letter boundary for a unit: min(3u, u + 250ms). */
-export function errorGapMs(unitMs, config = CONFIG) {
-  return Math.min(config.errorGapUnits * unitMs, unitMs + config.errorGapExtraMs)
+/**
+ * The error path's letter boundary: a gap at least `errorGapUnits` units long
+ * ends a letter that has diverged from the passage (or, unanchored, any letter).
+ * The units come from the tier's leniency table; there is deliberately no default.
+ */
+export function errorGapMs(unitMs, errorGapUnits) {
+  return requireErrorGapUnits(errorGapUnits) * unitMs
+}
+
+/** Returns `errorGapUnits`, or throws if a caller forgot to pass the leniency table's value. */
+export function requireErrorGapUnits(errorGapUnits) {
+  if (!(Number.isFinite(errorGapUnits) && errorGapUnits > 0)) {
+    throw new TypeError(`errorGapUnits must come from the leniency table, got ${errorGapUnits}`)
+  }
+  return errorGapUnits
 }
 
 /** How long a silence must last to count as a pause: max(10u, 2000ms). */
@@ -98,7 +111,6 @@ export class UnitEstimator {
     return {
       dash: c.dashAtUnits * u,
       intraGap: c.intraGapBelowUnits * u,
-      errorGap: errorGapMs(u, c),
       pause: pauseGapMs(u, c),
       maxPress: c.maxPressUnits * u,
     }

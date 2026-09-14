@@ -16,10 +16,12 @@ export const CALIBRATION_TEXT = 'PARIS'
  * letter 1, between letters 3) and the median of duration ÷ units is the
  * answer, so one sloppy element can't skew it.
  *
+ *   errorGapUnits  from the leniency table, as for any run (required)
+ *
  * Returns { ok: true, unitMs, wpm, heard } or { ok: false, heard }.
  */
-export function calibrate(log, config = CONFIG) {
-  const run = interpret(log, { target: CALIBRATION_TEXT, anchored: true, unitMs: config.defaultUnitMs, final: true, config })
+export function calibrate(log, { errorGapUnits, config = CONFIG } = {}) {
+  const run = interpret(log, { target: CALIBRATION_TEXT, errorGapUnits, anchored: true, unitMs: config.defaultUnitMs, final: true, config })
   const heard = run.text
   if (heard !== CALIBRATION_TEXT || run.marks.some(mark => mark.source !== 'key')) return { ok: false, heard }
 

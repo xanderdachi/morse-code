@@ -1,7 +1,7 @@
 // Everything the app remembers between visits, under one localStorage key.
 //
 //   { tier, clearedPassageIds, bestByPassageId, inputMode, unitMs, anchoredInput, boardsByTier,
-//     touchControls, sidetone, onboardingSeen }
+//     touchControls, sidetone, onboardingSeen, keyerMode, keyerWpm }
 //
 // unitMs is the operator's calibrated dot length, or null if they never calibrated.
 // anchoredInput is the player's choice at tier 5; below that anchoring is always on.
@@ -10,6 +10,8 @@
 // touchControls is 'auto' (follow the device), 'on' or 'off'.
 // sidetone is null to follow the device (on with touch controls), or the player's choice.
 // onboardingSeen is set once the first-visit intro has been closed, however it was closed.
+// keyerMode is how the dot/dash pad keys: 'manual' (each tap is an element) or
+// 'iambic' (held paddles generate elements at keyerWpm).
 //
 // localStorage can throw (Safari private browsing, blocked site data), so every
 // call is guarded and the latest saved state is also kept in memory: if storage
@@ -23,10 +25,37 @@ export const STORAGE_KEY = 'morse-club-v1'
 export const CLEAR_ACCURACY = 80 // percent, as shown in results
 export const MAX_TIER = 5
 export const BOARD_SIZE = 8
-export const UNANCHORED_FROM_TIER = 5 // anchoring can be switched off from this tier
-export const UNDO_UP_TO_TIER = 3 // undo is available up to and including this tier
+
+/**
+ * How forgiving each tier is, in one place. Every leniency decision in the app
+ * reads from here; nothing else hardcodes a tier or a threshold.
+ *
+ *   undo            the undo control (and Backspace) is offered
+ *   prosign         what taking a letter back with the error prosign costs:
+ *                   'free' (the letter is left out of grading) or 'deletion'
+ *                   (it is graded as a missed letter)
+ *   errorGapUnits   on the error path, a gap this many units long ends a letter
+ *   unanchored      the player may switch anchoring off and decode by timing alone
+ */
+export const LENIENCY = Object.freeze({
+  1: Object.freeze({ undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false }),
+  2: Object.freeze({ undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false }),
+  3: Object.freeze({ undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false }),
+  4: Object.freeze({ undo: false, prosign: 'deletion', errorGapUnits: 2, unanchored: false }),
+  5: Object.freeze({ undo: false, prosign: 'deletion', errorGapUnits: 2, unanchored: true }),
+})
+
+/** The leniency row for a tier (clamped to the tiers that exist). */
+export function leniencyFor(tier) {
+  return LENIENCY[Math.min(MAX_TIER, Math.max(1, Math.trunc(tier) || 1))]
+}
+
+/** The first tier where anchoring can be switched off, for telling players when it unlocks. */
+export const UNANCHORED_FROM_TIER = Number(Object.keys(LENIENCY).find(tier => LENIENCY[tier].unanchored))
 
 export const TOUCH_CONTROL_SETTINGS = ['auto', 'on', 'off']
+export const KEYER_MODES = ['manual', 'iambic']
+export const KEYER_WPM = Object.freeze({ min: 5, max: 40, default: 20 })
 
 const INPUT_MODE_IDS = ['key', 'pad']
 
@@ -45,6 +74,8 @@ export function defaultProgress() {
     touchControls: 'auto',
     sidetone: null,
     onboardingSeen: false,
+    keyerMode: 'manual',
+    keyerWpm: KEYER_WPM.default,
   }
 }
 
@@ -148,17 +179,22 @@ export function setInputMode(progress, inputMode) {
   return INPUT_MODE_IDS.includes(inputMode) ? { ...progress, inputMode } : progress
 }
 
-/** Whether runs decode against the passage: forced on below tier 5, the player's choice at tier 5. */
+/** Whether runs decode against the passage: always, unless the tier allows otherwise and the player chose it. */
 export function isAnchored(progress) {
-  return progress.tier < UNANCHORED_FROM_TIER || progress.anchoredInput
+  return !leniencyFor(progress.tier).unanchored || progress.anchoredInput
 }
 
 /** Whether the undo control is offered at the player's tier. */
 export function canUndo(progress) {
-  return progress.tier <= UNDO_UP_TO_TIER
+  return leniencyFor(progress.tier).undo
 }
 
-/** Choose anchored or pure-timing input. Only takes effect from tier 5. */
+/** How many letters taken back with the error prosign to grade as missed, at the player's tier. */
+export function prosignDeletions(progress, scrubbedLetters) {
+  return leniencyFor(progress.tier).prosign === 'deletion' ? scrubbedLetters : 0
+}
+
+/** Choose anchored or pure-timing input. Only takes effect where the tier allows it. */
 export function setAnchoredInput(progress, anchoredInput) {
   return { ...progress, anchoredInput: Boolean(anchoredInput) }
 }
@@ -188,6 +224,21 @@ export function setSidetone(progress, on) {
 /** Whether the sidetone plays: the player's choice, else on exactly when touch controls are in use. */
 export function sidetoneOn(progress, touchControls) {
   return progress.sidetone ?? Boolean(touchControls)
+}
+
+/** 'manual' or 'iambic', for the dot/dash pad. */
+export function setKeyerMode(progress, keyerMode) {
+  return KEYER_MODES.includes(keyerMode) ? { ...progress, keyerMode } : progress
+}
+
+/** The iambic keyer's speed, rounded and clamped to 5–40 WPM. */
+export function setKeyerWpm(progress, wpm) {
+  return Number.isFinite(wpm) ? { ...progress, keyerWpm: clampWpm(wpm) } : progress
+}
+
+/** Whether the pad generates elements itself: pad mode with the iambic keyer on. */
+export function usesIambic(progress) {
+  return progress.inputMode === 'pad' && progress.keyerMode === 'iambic'
 }
 
 export function markOnboardingSeen(progress) {
@@ -233,7 +284,13 @@ function sanitize(value) {
     sidetone: typeof input.sidetone === 'boolean' ? input.sidetone : null,
     // Progress saved before the intro existed belongs to a returning player, who never needs it.
     onboardingSeen: typeof input.onboardingSeen === 'boolean' ? input.onboardingSeen : true,
+    keyerMode: KEYER_MODES.includes(input.keyerMode) ? input.keyerMode : 'manual',
+    keyerWpm: Number.isFinite(input.keyerWpm) ? clampWpm(input.keyerWpm) : KEYER_WPM.default,
   }
+}
+
+function clampWpm(wpm) {
+  return Math.min(KEYER_WPM.max, Math.max(KEYER_WPM.min, Math.round(wpm)))
 }
 
 function sanitizeIds(ids) {

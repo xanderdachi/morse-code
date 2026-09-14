@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { MotionGlobalConfig } from 'framer-motion'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { leniencyFor } from '../lib/progress.js'
 import { mockClock } from '../testing/dom.js'
 import OnboardingModal from './OnboardingModal.jsx'
 
@@ -24,7 +25,7 @@ afterEach(() => {
 
 function renderIntro(props = {}) {
   const onClose = vi.fn()
-  const view = render(<OnboardingModal open onClose={onClose} touch={false} mode="key" {...props} />)
+  const view = render(<OnboardingModal open onClose={onClose} touch={false} mode="key" errorGapUnits={leniencyFor(1).errorGapUnits} {...props} />)
   return { ...view, onClose }
 }
 
@@ -52,6 +53,7 @@ describe('intro cards', () => {
     pipSays('send me an E')
     fireEvent.click(screen.getByRole('button', { name: 'Skip' }))
     pipSays('pausing to think costs you nothing')
+    expect(screen.getByText(/Eight quick dots/)).toBeTruthy()
     expect(screen.getByRole('heading', { name: 'Welcome to Morse Club' })).toBeTruthy()
   })
 

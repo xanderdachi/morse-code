@@ -4,10 +4,14 @@ import { grade } from './grade.js'
 import { createKeyer, interpret } from './keyer.js'
 import { seededRandom, synthesizeKeying } from './testing/syntheticKeyer.js'
 import { CONFIG } from './timing.js'
+import { leniencyFor } from '../lib/progress.js'
+
+// The error path's letter gap, from the leniency table as the app uses it.
+const { errorGapUnits } = leniencyFor(1)
 
 const TEXT = 'In a certain kingdom, in a certain land, there lived a Tsar.'
 const lettersOf = text => normalize(text).replaceAll(' ', '').toUpperCase()
-const finish = (log, options = {}) => interpret(log, { target: TEXT, final: true, ...options })
+const finish = (log, options = {}) => interpret(log, { errorGapUnits, target: TEXT, final: true, ...options })
 const replay = (keyer, log) => {
   for (const { type, t, pad } of log) {
     if (pad && type === 'down') keyer.padDown(pad, t)
@@ -28,7 +32,7 @@ describe('raw input hygiene', () => {
   })
 
   it('does not log or act on a repeated down from the live keyer', () => {
-    const keyer = createKeyer({ target: 'T' })
+    const keyer = createKeyer({ errorGapUnits, target: 'T' })
     expect(keyer.keyDown(0)).toBe(true)
     for (let t = 30; t < 330; t += 30) expect(keyer.keyDown(t)).toBe(false)
     expect(keyer.keyUp(360)).toBe(true)
@@ -69,7 +73,7 @@ describe('raw input hygiene', () => {
   })
 
   it('treats releasing everything (blur, pointercancel) as a key release', () => {
-    const keyer = createKeyer({ target: 'T', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'T', unitMs: 100 })
     keyer.keyDown(1000)
     expect(keyer.state(1100).isKeyDown).toBe(true)
     expect(keyer.releaseAll(1400)).toBe(true)
@@ -85,14 +89,14 @@ describe('raw input hygiene', () => {
 
 describe('live state', () => {
   it('reports a held key becoming a dash, and schedules that check', () => {
-    const keyer = createKeyer({ target: 'T', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'T', unitMs: 100 })
     keyer.keyDown(1000)
     expect(keyer.state(1100)).toMatchObject({ isKeyDown: true, dashFormed: false, nextCheckAt: 1200 })
     expect(keyer.state(1200)).toMatchObject({ dashFormed: true, nextCheckAt: null })
   })
 
   it('enters and reports a pause after max(10u, 2000ms) of silence, freezing sending time', () => {
-    const keyer = createKeyer({ target: 'EE', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'EE', unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100)
     const quiet = keyer.state(1000)
@@ -106,7 +110,7 @@ describe('live state', () => {
   })
 
   it('shows committed letters and the letter in progress, with no word separators', () => {
-    const keyer = createKeyer({ target: 'AB', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'AB', unitMs: 100 })
     for (const [down, up] of [[0, 100], [200, 500], [1200, 1500], [1600, 1700]]) {
       keyer.keyDown(down)
       keyer.keyUp(up)
@@ -122,7 +126,7 @@ describe('live state', () => {
 
   it('agrees with the finished run once the run is over', () => {
     const log = synthesizeKeying(TEXT, { wpm: 22, jitter: 0.15, seed: 4 })
-    const live = interpret(log, { target: TEXT, now: log.at(-1).t + 10_000 })
+    const live = interpret(log, { errorGapUnits, target: TEXT, now: log.at(-1).t + 10_000 })
     expect(live.text).toBe(finish(log).text)
   })
 })
@@ -140,7 +144,7 @@ describe('degenerate runs', () => {
 
   it('handles an empty run', () => {
     for (const anchored of [true, false]) {
-      const run = createKeyer({ target: TEXT, anchored }).finish(5000)
+      const run = createKeyer({ errorGapUnits, target: TEXT, anchored }).finish(5000)
       expect(run).toMatchObject({ letters: [], text: '', log: [{ type: 'finish', t: 5000 }], startedAt: null, elapsedMs: 0, pausedMs: 0 })
       expect(saneResult(run)).toMatchObject({ accuracy: 0, wpm: 0, effectiveWpm: 0 })
     }
@@ -170,7 +174,7 @@ describe('degenerate runs', () => {
   it('handles a run abandoned halfway, reporting speed honestly', () => {
     const full = synthesizeKeying(TEXT, { wpm: 15 })
     for (const anchored of [true, false]) {
-      const keyer = createKeyer({ target: TEXT, anchored })
+      const keyer = createKeyer({ errorGapUnits, target: TEXT, anchored })
       const half = full.slice(0, Math.floor(full.length / 4) * 2)
       replay(keyer, half)
       const run = keyer.finish(half.at(-1).t + 50)
@@ -184,7 +188,7 @@ describe('degenerate runs', () => {
   })
 
   it('handles a run abandoned with the key still held', () => {
-    const keyer = createKeyer({ target: 'EA', unitMs: 100 })
+    const keyer = createKeyer({ errorGapUnits, target: 'EA', unitMs: 100 })
     keyer.keyDown(0)
     keyer.keyUp(100)
     keyer.keyDown(400)

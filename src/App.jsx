@@ -24,6 +24,7 @@ import {
   canUndo,
   isAnchored,
   isCleared,
+  leniencyFor,
   loadProgress,
   markOnboardingSeen,
   recordRun,
@@ -32,14 +33,17 @@ import {
   setBoardIds,
   setCalibration,
   setInputMode,
+  setKeyerMode,
+  setKeyerWpm,
   setSidetone,
   setTouchControls,
   sidetoneOn,
   tierStatus,
+  usesIambic,
   usesTouchControls,
 } from './lib/progress.js'
-import { grade } from './morse/grade.js'
-import { wordsPerMinute } from './morse/units.js'
+import { scoreRun } from './lib/results.js'
+import { unitMsForWpm, wordsPerMinute } from './morse/units.js'
 
 // The Finish control appears once this few letters of the passage remain.
 const FINISH_CONTROL_WITHIN = 3
@@ -59,6 +63,8 @@ export default function App() {
   const touch = usesTouchControls(progress, coarsePointer)
   const sidetone = sidetoneOn(progress, touch)
   const mode = progress.inputMode
+  const iambic = usesIambic(progress)
+  const { errorGapUnits } = leniencyFor(progress.tier)
   const anchored = isAnchored(progress)
   const undoAllowed = anchored && canUndo(progress)
   const boardLoading = board.tier !== progress.tier
@@ -71,8 +77,12 @@ export default function App() {
   const input = useMorseInput({
     mode,
     target,
+    errorGapUnits,
     anchored,
-    unitMs: progress.unitMs,
+    // The iambic keyer's elements are exactly its own unit long.
+    unitMs: iambic ? unitMsForWpm(progress.keyerWpm) : progress.unitMs,
+    keyerMode: progress.keyerMode,
+    keyerWpm: progress.keyerWpm,
     enabled: modal === null,
     undoEnabled: undoAllowed && result === null,
     sidetone,
@@ -121,7 +131,7 @@ export default function App() {
       startOver()
       return
     }
-    const graded = grade({ target, sent: run.text, elapsedMs: run.elapsedMs, letterUnits: run.letterUnits })
+    const graded = scoreRun({ run, target, progress, mode, keyerMode: progress.keyerMode, keyerWpm: progress.keyerWpm })
     const outcome = recordRun(progress, {
       passageId: passage.id,
       accuracy: Math.round(graded.accuracy),
@@ -130,13 +140,9 @@ export default function App() {
     commitProgress(outcome.progress)
     setResult({
       ...graded,
-      elapsedMs: run.elapsedMs,
-      pausedMs: run.pausedMs,
-      anchored: run.anchored,
       // The raw keystroke log, for replaying the decode or verifying a score later. Not sent anywhere.
       log: run.log,
       anomalies: run.anomalies,
-      mode,
       passage,
       passageNumber: passageIndex + 1,
       advancedToTier: outcome.advanced ? outcome.progress.tier : null,
@@ -200,6 +206,10 @@ export default function App() {
     commitProgress(setAnchoredInput(progress, next))
   }
 
+  function changeKeyerMode(next) {
+    if (next !== progress.keyerMode) commitProgress(setKeyerMode(progress, next))
+  }
+
   function changeTouchControls(next) {
     if (next !== progress.touchControls) commitProgress(setTouchControls(progress, next))
   }
@@ -209,6 +219,8 @@ export default function App() {
   let pipLine = 'Ready when you are.'
   if (percent !== null && percent >= 93) pipLine = 'Textbook. Pip is thrilled.'
   else if (percent !== null && percent >= 85) pipLine = 'Nice hand!'
+  // The error prosign is good operating, so it gets a calm nod, never an alarm.
+  else if (!result && input.prosignHeard) pipLine = 'Disregarded. Carry on from there.'
   else if (!result && input.paused) pipLine = 'Take your time.'
   else if (!result && input.strip.length > 0) pipLine = 'Keep it coming.'
 
@@ -270,7 +282,13 @@ export default function App() {
           <main className="flex flex-col gap-[18px]">
             <div className="flex min-w-0 flex-col gap-3.5">
               <PassageDisplay passage={passage} lettersSent={lettersSent} compact={touch} idle={!runActive} ref={passageRef} />
-              <RunStats input={input} holding={holding} result={result} targetLetters={targetLetters} />
+              <RunStats
+                input={input}
+                holding={holding}
+                result={result}
+                targetLetters={targetLetters}
+                keyerWpm={iambic ? progress.keyerWpm : null}
+              />
             </div>
 
             <div className="flex min-w-0 flex-col gap-3.5">
@@ -278,6 +296,7 @@ export default function App() {
 
               <div className="flex flex-col items-center gap-3.5 rounded-card border-2 border-edge bg-card px-[18px] pb-5 pt-[18px] shadow-card">
                 <InputModeToggle mode={mode} onChange={changeMode} />
+                {iambic && <span className="eyebrow -mt-1.5">Iambic keyer · {progress.keyerWpm} wpm</span>}
                 <Lamp on={holding} label={lampLabel} />
 
                 {touch ? (
@@ -399,18 +418,26 @@ export default function App() {
         sidetone={sidetone}
         onSidetoneChange={on => commitProgress(setSidetone(progress, on))}
         onShowIntro={runActive ? null : () => setModal('intro')}
+        keyerMode={progress.keyerMode}
+        onKeyerModeChange={changeKeyerMode}
+        keyerWpm={progress.keyerWpm}
+        onKeyerWpmChange={wpm => commitProgress(setKeyerWpm(progress, wpm))}
       />
       <OnboardingModal
         open={introOpen}
         onClose={closeIntro}
         touch={touch}
         mode={mode}
-        unitMs={progress.unitMs}
+        unitMs={iambic ? unitMsForWpm(progress.keyerWpm) : progress.unitMs}
+        errorGapUnits={errorGapUnits}
+        keyerMode={progress.keyerMode}
+        keyerWpm={progress.keyerWpm}
         sidetone={sidetone}
       />
       <CalibrationModal
         open={modal === 'calibrate'}
         onClose={() => setModal('settings')}
+        errorGapUnits={errorGapUnits}
         currentUnitMs={progress.unitMs}
         sidetone={sidetone}
         touch={touch}
@@ -432,7 +459,8 @@ export default function App() {
   )
 }
 
-function RunStats({ input, holding, result, targetLetters }) {
+// `keyerWpm` is set for the iambic keyer, whose speed is chosen in settings rather than measured from the operator.
+function RunStats({ input, holding, result, targetLetters, keyerWpm }) {
   const { startedAt, lastEnd, pausedMs, pauseAfterMs, lettersSent, letterUnits } = input
   const running = startedAt !== null && result === null
   const [now, setNow] = useState(() => performance.now())
@@ -450,17 +478,22 @@ function RunStats({ input, holding, result, targetLetters }) {
   const elapsedMs = result ? result.elapsedMs : running ? Math.max(0, now - startedAt - pausedMs - pausingNow) : 0
   const liveWpm = elapsedMs > 1200 ? wordsPerMinute(letterUnits, elapsedMs) : 0
   const wpm = Math.round(result ? result.wpm : liveWpm)
-  const progress = Math.min(100, Math.round((100 * lettersSent) / Math.max(1, targetLetters)))
+  const sent = Math.min(lettersSent, targetLetters)
+  const progress = Math.min(100, Math.round((100 * sent) / Math.max(1, targetLetters)))
 
   return (
     <div className="flex flex-wrap gap-2.5">
       <Stat label="Time" value={formatClock(elapsedMs)} />
-      <Stat label="Pace" value={`${wpm} wpm`} />
+      {result?.keyerMode === 'iambic' || (!result && keyerWpm) ? (
+        <Stat label="Keyer" value={`${result?.keyerWpm ?? keyerWpm} wpm`} />
+      ) : (
+        <Stat label="Pace" value={`${wpm} wpm`} />
+      )}
       <div className="flex-[2_1_200px] rounded-tile border-2 border-edge bg-card px-3.5 py-[11px] shadow-card">
         <div className="eyebrow flex justify-between">
           <span>Sent</span>
           <span>
-            {lettersSent} / {targetLetters}
+            {sent} / {targetLetters}
           </span>
         </div>
         <div
@@ -468,7 +501,7 @@ function RunStats({ input, holding, result, targetLetters }) {
           aria-label="Letters sent"
           aria-valuemin={0}
           aria-valuemax={targetLetters}
-          aria-valuenow={Math.min(lettersSent, targetLetters)}
+          aria-valuenow={sent}
           className="mt-[7px] h-3 overflow-hidden rounded-full bg-paper-2"
         >
           <div className="h-full rounded-full bg-secondary transition-[width] duration-250 ease-out" style={{ width: `${progress}%` }} />

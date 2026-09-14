@@ -16,25 +16,30 @@ import { anchorLetters } from './anchor.js'
 import { analyzeRhythm } from './rhythm.js'
 import { segmentLetters } from './segment.js'
 import { DASH, DOT, isMark } from './symbols.js'
-import { CONFIG, pauseGapMs, settleGapMs } from './timing.js'
+import { CONFIG, pauseGapMs, requireErrorGapUnits, settleGapMs } from './timing.js'
 import { codeUnits } from './units.js'
 
 /**
  * Decode a keystroke log into letters.
  *
  * Options:
- *   target    the passage (any form; normalized and spaces removed here)
- *   anchored  segment against the target (default) or from timing alone
- *   unitMs    the operator's calibrated dot length
- *   now       the current time, for a live run
- *   final     the run is over (also implied by a 'finish' event in the log)
+ *   target         the passage (any form; normalized and spaces removed here)
+ *   errorGapUnits  the error path's letter gap, from the tier's leniency table (required)
+ *   anchored       segment against the target (default) or from timing alone
+ *   unitMs         the operator's calibrated dot length
+ *   now            the current time, for a live run
+ *   final          the run is over (also implied by a 'finish' event in the log)
  *
  * Returns:
  *   letters        [{ code, char, markIds, kind }]
  *   text           the letters as a string, no spaces
  *   strip          marks to display, in order: [{ id, symbol, endsLetter }]
- *   cursor         next expected letter in the space-stripped target (anchored)
+ *   cursor         next expected letter in the space-stripped target, never past its end
+ *   lettersSent    letters on the wire, never more than the target has: the position to show
  *   remaining      letters of the target not yet reached
+ *   scrubs         [{ markIds, letter }] for each error prosign, with the letter it took back
+ *   scrubbedLetters how many letters prosigns took back
+ *   prosignHeard   an error prosign ended within the last CONFIG.prosignAckMs (live runs)
  *   complete       every letter of the target has been sent
  *   finalized      the run is over and its result is fixed
  *   finalizeAt     when silence alone will end this live run (or null)
@@ -50,7 +55,7 @@ import { codeUnits } from './units.js'
  */
 export function interpret(
   log,
-  { target = '', anchored = true, unitMs = CONFIG.defaultUnitMs, now = null, final = false, config = CONFIG } = {},
+  { target = '', errorGapUnits, anchored = true, unitMs = CONFIG.defaultUnitMs, now = null, final = false, config = CONFIG } = {},
 ) {
   const { marks, steps, anomalies, keyDownAt, padDownAt, lastEnd, finished } = readLog(log, config)
   const isFinal = final || finished
@@ -81,7 +86,7 @@ export function interpret(
   const paused = silenceMs !== null && silenceMs >= pauseAfterMs
 
   const compareTarget = normalize(target).replaceAll(' ', '').toUpperCase()
-  const segmentation = { target: compareTarget, final: isFinal, silenceMs, unitMs: currentUnitMs, lastEnd, holding, config }
+  const segmentation = { target: compareTarget, errorGapUnits, final: isFinal, silenceMs, unitMs: currentUnitMs, lastEnd, holding, config }
   const result = anchored
     ? anchorLetters(steps, marks, segmentation)
     : segmentLetters(steps, marks, { ...segmentation, targetLength: compareTarget.length })
@@ -97,9 +102,14 @@ export function interpret(
   const position = anchored ? result.cursor : result.letters.length + (result.pendingIds.length > 0 ? 1 : 0)
   const remaining = Math.max(0, compareTarget.length - position)
 
+  // The acknowledgement for an error prosign lasts a moment after its last dot.
+  const lastProsign = result.scrubs.at(-1)
+  const prosignEnd = lastProsign ? Math.max(...lastProsign.markIds.map(id => marks[id].end)) : null
+  const prosignHeard = !isFinal && now !== null && prosignEnd !== null && now < prosignEnd + config.prosignAckMs
+
   const startedAt = marks[0]?.start ?? null
   let dashFormed = false
-  const deadlines = [result.nextCheckAt]
+  const deadlines = [result.nextCheckAt, prosignHeard ? prosignEnd + config.prosignAckMs : null]
   let finalizeAt = null
   let finalizeReason = null
   if (!isFinal) {
@@ -130,8 +140,12 @@ export function interpret(
     letters: result.letters,
     text: result.letters.map(letter => letter.char).join(''),
     strip,
-    cursor: result.cursor ?? result.letters.length,
+    cursor: Math.min(result.cursor ?? result.letters.length, compareTarget.length),
+    lettersSent: compareTarget.length > 0 ? Math.min(result.letters.length, compareTarget.length) : result.letters.length,
     remaining,
+    scrubs: result.scrubs,
+    scrubbedLetters: result.scrubs.filter(scrub => scrub.letter !== null).length,
+    prosignHeard,
     complete: result.complete,
     finalized: isFinal,
     finalizeAt,
@@ -162,9 +176,10 @@ export function interpret(
  * finger — is ignored and returns false). Once the run is finalized, every
  * input method returns false and records nothing.
  */
-export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', anchored = true, config = CONFIG } = {}) {
+export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorGapUnits, anchored = true, config = CONFIG } = {}) {
+  requireErrorGapUnits(errorGapUnits)
   let log = []
-  const options = { unitMs, target, anchored }
+  const options = { unitMs, target, anchored, errorGapUnits }
   let keyHeld = false
   const padsHeld = new Set()
   let finalRun = null
@@ -188,6 +203,7 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', anchor
       if (next.unitMs !== undefined) options.unitMs = next.unitMs ?? CONFIG.defaultUnitMs
       if (next.target !== undefined) options.target = next.target
       if (next.anchored !== undefined) options.anchored = next.anchored
+      if (next.errorGapUnits !== undefined) options.errorGapUnits = requireErrorGapUnits(next.errorGapUnits)
     },
 
     keyDown(t) {

@@ -17,19 +17,21 @@ export const TRY_LETTER = 'E'
  * the moment one arrives. Closable at every step; `onClose` fires however it
  * was closed. Its steps reset each time it opens.
  *
- *   touch    whether this device keys on the touch keys (else the keyboard)
- *   mode     'key' or 'pad'
+ *   touch          whether this device keys on the touch keys (else the keyboard)
+ *   mode           'key' or 'pad'
+ *   errorGapUnits  from the tier's leniency table, as for any run
+ *   keyerMode, keyerWpm  the pad's keyer, so the try-it card keys the way a run would
  */
-export default function OnboardingModal({ open, onClose, touch, mode, unitMs = null, sidetone = false }) {
+export default function OnboardingModal({ open, onClose, ...props }) {
   const titleId = useId()
   return (
     <Modal open={open} onClose={onClose} width={540} labelledBy={titleId}>
-      <Intro titleId={titleId} onClose={onClose} touch={touch} mode={mode} unitMs={unitMs} sidetone={sidetone} />
+      <Intro titleId={titleId} onClose={onClose} {...props} />
     </Modal>
   )
 }
 
-function Intro({ titleId, onClose, touch, mode, unitMs, sidetone }) {
+function Intro({ titleId, onClose, touch, mode, unitMs = null, errorGapUnits, keyerMode = 'manual', keyerWpm = null, sidetone = false }) {
   const [step, setStep] = useState(0)
   const [missed, setMissed] = useState(false)
   const [passed, setPassed] = useState(false)
@@ -40,6 +42,9 @@ function Intro({ titleId, onClose, touch, mode, unitMs, sidetone }) {
   const input = useMorseInput({
     mode,
     target: TRY_LETTER,
+    errorGapUnits,
+    keyerMode,
+    keyerWpm,
     unitMs,
     enabled: trying,
     sidetone,
@@ -124,7 +129,14 @@ function Intro({ titleId, onClose, touch, mode, unitMs, sidetone }) {
             )}
           </>
         )}
-        {kind === 'after' && <AfterPicture />}
+        {kind === 'after' && (
+          <>
+            <AfterPicture />
+            <p className="text-center text-[13px] font-semibold leading-[1.45] text-pretty text-ink-soft">
+              Sent a letter you want back? Eight quick dots is the operator&rsquo;s signal to disregard it.
+            </p>
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-2.5">

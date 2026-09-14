@@ -11,8 +11,6 @@ describe('CONFIG', () => {
       maxUnitMs: 400,
       dashAtUnits: 2,
       intraGapBelowUnits: 2,
-      errorGapUnits: 3,
-      errorGapExtraMs: 250,
       pauseUnits: 10,
       pauseMinMs: 2000,
       minPressMs: 20,
@@ -26,10 +24,11 @@ describe('CONFIG', () => {
 })
 
 describe('thresholds', () => {
-  it('closes an error-path letter at min(3u, u + 250ms)', () => {
-    expect(errorGapMs(40)).toBe(120)
-    expect(errorGapMs(125)).toBe(375)
-    expect(errorGapMs(300)).toBe(550)
+  it('closes an error-path letter after the leniency table\'s number of units, and has no default', () => {
+    expect(errorGapMs(40, 2)).toBe(80)
+    expect(errorGapMs(125, 2)).toBe(250)
+    expect(() => errorGapMs(125)).toThrow(TypeError)
+    expect('errorGapUnits' in CONFIG).toBe(false)
   })
 
   it('calls a silence a pause beyond max(10u, 2000ms)', () => {
@@ -50,7 +49,7 @@ describe('UnitEstimator', () => {
   it('gives a gap only two meanings: inside a letter, or not', () => {
     expect(estimator.isIntraGap(199.9)).toBe(true)
     expect(estimator.isIntraGap(200)).toBe(false)
-    expect(estimator.thresholds()).toEqual({ dash: 200, intraGap: 200, errorGap: 300, pause: 2000, maxPress: 1000 })
+    expect(estimator.thresholds()).toEqual({ dash: 200, intraGap: 200, pause: 2000, maxPress: 1000 })
   })
 
   it('learns from dots, and dashes divided by 3', () => {

@@ -185,3 +185,61 @@ describe('touch controls', () => {
     expect(keys).toEqual(['Dot', 'end letter', 'Dash'])
   })
 })
+
+// These key a whole run through the real App, which takes a few seconds in jsdom.
+describe('misinput during a run', { timeout: 20_000 }, () => {
+  // Pad mode on the keyboard: '.' and '-' are elements, space ends a letter. Every press 60 ms long, 60 ms apart.
+  function keyPad(clock, sequence) {
+    for (const key of sequence) {
+      if (key === ' ') {
+        clock.fire(window, 'keydown', { key: ' ', code: 'Space' }, clock.now + 60)
+        clock.fire(window, 'keyup', { key: ' ', code: 'Space' }, clock.now + 10)
+      } else {
+        const code = key === '.' ? 'Period' : 'Minus'
+        clock.fire(window, 'keydown', { key, code }, clock.now + 60)
+        clock.fire(window, 'keyup', { key, code }, clock.now + 60)
+      }
+    }
+  }
+
+  const sentCounter = () => screen.getByText('Sent').parentElement.lastElementChild.textContent.replace(/\s+/g, ' ').trim()
+
+  it('never shows more letters sent than the passage has', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp() // Hamlet: "To be, or not to be." is 15 letters
+    const clock = mockClock(50_000)
+    keyPad(clock, '. '.repeat(24))
+    expect(sentCounter()).toBe('15 / 15')
+  })
+
+  it('acknowledges the error prosign calmly, from Pip', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    keyPad(clock, '- -- ')
+    expect(sentCounter()).toBe('2 / 15')
+    keyPad(clock, '........')
+    expect(screen.getByText('Disregarded. Carry on from there.')).toBeTruthy()
+    expect(sentCounter()).toBe('1 / 15')
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+})
+
+describe('iambic keyer settings', () => {
+  it('switches the pad to iambic, persists its speed, and shows the speed near the mode toggle', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    expect(screen.queryByText(/Iambic keyer ·/)).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Pad keyer' })).getByRole('button', { name: 'Iambic' }))
+    fireEvent.change(screen.getByRole('slider'), { target: { value: '32' } })
+    expect(stored()).toMatchObject({ keyerMode: 'iambic', keyerWpm: 32 })
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+
+    await waitFor(() => expect(screen.getByText('Iambic keyer · 32 wpm')).toBeTruthy())
+    // The live speed tile reports the keyer's chosen speed, not a measured one.
+    expect(screen.getByText('Keyer')).toBeTruthy()
+    expect(screen.queryByText('Pace')).toBeNull()
+  })
+})

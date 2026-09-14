@@ -271,6 +271,8 @@ describe('storage', () => {
       touchControls: 'auto',
       sidetone: null,
       onboardingSeen: true,
+      keyerMode: 'manual',
+      keyerWpm: 20,
     })
     expect(loadProgress()).toEqual({
       tier: 3,
@@ -283,6 +285,8 @@ describe('storage', () => {
       touchControls: 'auto',
       sidetone: null,
       onboardingSeen: true,
+      keyerMode: 'manual',
+      keyerWpm: 20,
     })
   })
 
@@ -299,6 +303,8 @@ describe('storage', () => {
       touchControls: 'auto',
       sidetone: null,
       onboardingSeen: false,
+      keyerMode: 'manual',
+      keyerWpm: 20,
     })
   })
 
@@ -337,6 +343,8 @@ describe('storage', () => {
       touchControls: 'auto',
       sidetone: null,
       onboardingSeen: true,
+      keyerMode: 'manual',
+      keyerWpm: 20,
     })
   })
 
@@ -509,5 +517,51 @@ describe('onboarding', () => {
     saveProgress(markOnboardingSeen(loadProgress()))
     // The stored copy still says unseen; it must not bring the intro back.
     expect(loadProgress().onboardingSeen).toBe(true)
+  })
+})
+
+describe('leniency table', () => {
+  it('holds the rules for every tier in one place', () => {
+    const { LENIENCY } = progressModule
+    expect(LENIENCY).toEqual({
+      1: { undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false },
+      2: { undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false },
+      3: { undo: true, prosign: 'free', errorGapUnits: 2, unanchored: false },
+      4: { undo: false, prosign: 'deletion', errorGapUnits: 2, unanchored: false },
+      5: { undo: false, prosign: 'deletion', errorGapUnits: 2, unanchored: true },
+    })
+    expect(Object.isFrozen(LENIENCY[3])).toBe(true)
+  })
+
+  it('drives undo, anchoring and the prosign cost', () => {
+    const { defaultProgress, canUndo, isAnchored, prosignDeletions, leniencyFor, UNANCHORED_FROM_TIER } = progressModule
+    for (let tier = 1; tier <= 5; tier++) {
+      const progress = { ...defaultProgress(), tier, anchoredInput: false }
+      expect(canUndo(progress)).toBe(leniencyFor(tier).undo)
+      expect(isAnchored(progress)).toBe(!leniencyFor(tier).unanchored)
+      expect(prosignDeletions(progress, 2)).toBe(leniencyFor(tier).prosign === 'deletion' ? 2 : 0)
+    }
+    expect(UNANCHORED_FROM_TIER).toBe(5)
+    expect(leniencyFor(0)).toBe(leniencyFor(1))
+    expect(leniencyFor(9)).toBe(leniencyFor(5))
+  })
+})
+
+describe('iambic keyer settings', () => {
+  it('defaults to the manual pad at 20 WPM', () => {
+    const { defaultProgress, usesIambic } = progressModule
+    expect(defaultProgress()).toMatchObject({ keyerMode: 'manual', keyerWpm: 20 })
+    expect(usesIambic({ ...defaultProgress(), inputMode: 'pad' })).toBe(false)
+  })
+
+  it('persists the mode and a speed clamped to 5–40 WPM', () => {
+    vi.stubGlobal('localStorage', new MemoryStorage())
+    const { defaultProgress, setKeyerMode, setKeyerWpm, saveProgress, loadProgress, usesIambic } = progressModule
+    saveProgress(setKeyerWpm(setKeyerMode({ ...defaultProgress(), inputMode: 'pad' }, 'iambic'), 27.4))
+    expect(loadProgress()).toMatchObject({ keyerMode: 'iambic', keyerWpm: 27 })
+    expect(usesIambic(loadProgress())).toBe(true)
+    expect(setKeyerWpm(defaultProgress(), 2).keyerWpm).toBe(5)
+    expect(setKeyerWpm(defaultProgress(), 90).keyerWpm).toBe(40)
+    expect(setKeyerMode(defaultProgress(), 'bug').keyerMode).toBe('manual')
   })
 })
