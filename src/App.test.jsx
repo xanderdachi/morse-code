@@ -2,7 +2,8 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MotionGlobalConfig } from 'framer-motion'
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mockClock } from './testing/dom.js'
+import { stubCanvas } from './testing/canvas.js'
+import { fakeFrames, mockClock } from './testing/dom.js'
 import { fakeMatchMedia } from './testing/fakeMatchMedia.js'
 
 // No network: the board comes from the bundled passages.
@@ -15,6 +16,8 @@ beforeAll(() => {
 })
 
 beforeEach(() => {
+  // The loading screen draws to a canvas jsdom doesn't implement.
+  stubCanvas()
   localStorage.clear()
   // progress.js keeps a copy in memory; each test starts from a fresh page load.
   vi.resetModules()
@@ -22,6 +25,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
@@ -225,6 +229,49 @@ describe('misinput during a run', { timeout: 20_000 }, () => {
   })
 })
 
+describe('run dump (?dump)', { timeout: 20_000 }, () => {
+  function keyEs(clock, count) {
+    for (let i = 0; i < count; i++) {
+      clock.fire(window, 'keydown', { key: '.', code: 'Period' }, clock.now + 60)
+      clock.fire(window, 'keyup', { key: '.', code: 'Period' }, clock.now + 60)
+      clock.fire(window, 'keydown', { key: ' ', code: 'Space' }, clock.now + 60)
+      clock.fire(window, 'keyup', { key: ' ', code: 'Space' }, clock.now + 10)
+    }
+  }
+
+  afterEach(() => {
+    window.history.replaceState(null, '', '/')
+  })
+
+  it('keeps each finished run with its keystroke log and raw events', async () => {
+    window.history.replaceState(null, '', '/?dump')
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    expect(screen.getByText('Run dump: 0 saved')).toBeTruthy()
+    const clock = mockClock(50_000)
+    keyEs(clock, 15)
+    fireEvent.click(screen.getByRole('button', { name: 'Send it' }))
+
+    const [run] = JSON.parse(localStorage.getItem('morse-club-run-dump'))
+    expect(run.sent).toBe('EEEEEEEEEEEEEEE')
+    expect(run.log.filter(entry => entry.type === 'down' && entry.pad === '.')).toHaveLength(15)
+    // The log's times are the events' stamps, and the trace has every one of them.
+    const stamps = new Set(run.events.map(event => event.stamp))
+    expect(run.log.every(entry => stamps.has(entry.t))).toBe(true)
+    expect(screen.getByText('Run dump: 1 saved')).toBeTruthy()
+  })
+
+  it('keeps nothing and shows nothing without ?dump', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    keyEs(clock, 15)
+    fireEvent.click(screen.getByRole('button', { name: 'Send it' }))
+    expect(localStorage.getItem('morse-club-run-dump')).toBeNull()
+    expect(screen.queryByRole('group', { name: 'Run dump' })).toBeNull()
+  })
+})
+
 describe('iambic keyer settings', () => {
   it('switches the pad to iambic, persists its speed, and shows the speed near the mode toggle', async () => {
     seed({ onboardingSeen: true, inputMode: 'pad' })
@@ -241,5 +288,234 @@ describe('iambic keyer settings', () => {
     // The live speed tile reports the keyer's chosen speed, not a measured one.
     expect(screen.getByText('Keyer')).toBeTruthy()
     expect(screen.queryByText('Pace')).toBeNull()
+  })
+})
+
+describe('iambic is the pad only (app)', () => {
+  it('hides the pad keyer settings for the straight key, and reads a straight-key run from presses with iambic persisted', async () => {
+    seed({ onboardingSeen: true, inputMode: 'key', keyerMode: 'iambic', keyerWpm: 20 })
+    await loadApp()
+    expect(screen.queryByText(/Iambic keyer ·/)).toBeNull()
+    expect(screen.getByText('Pace')).toBeTruthy()
+
+    const clock = mockClock(50_000)
+    clock.fire(window, 'keydown', { key: ' ', code: 'Space' }, 50_000)
+    clock.fire(window, 'keyup', { key: ' ', code: 'Space' }, 50_410) // one long press: a single dash
+    const marks = [...document.querySelectorAll('section[aria-label=Transmission] span.rounded-full')].filter(
+      node => !String(node.className).includes('animate-caret'),
+    )
+    expect(marks).toHaveLength(1)
+    expect(String(marks[0].className)).toContain('w-10')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+    expect(screen.queryByRole('group', { name: 'Pad keyer' })).toBeNull()
+    expect(screen.queryByRole('slider')).toBeNull()
+  })
+
+  it('drops the iambic readout and settings when the player switches to the straight key', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20 })
+    await loadApp()
+    expect(screen.getByText('Iambic keyer · 20 wpm')).toBeTruthy()
+    fireEvent.click(within(screen.getAllByRole('group', { name: 'Input mode' })[0]).getByRole('button', { name: 'Straight key' }))
+    expect(screen.queryByText(/Iambic keyer ·/)).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+    expect(screen.queryByRole('group', { name: 'Pad keyer' })).toBeNull()
+    // Switching back brings the saved choice back.
+    fireEvent.click(within(screen.getAllByRole('group', { name: 'Input mode' }).at(-1)).getByRole('button', { name: 'Dot / dash pad' }))
+    expect(within(screen.getByRole('group', { name: 'Pad keyer' })).getByRole('button', { name: 'Iambic' }).getAttribute('aria-pressed')).toBe('true')
+  })
+})
+
+describe('undo and start over after a click', () => {
+  function keyT(clock) {
+    clock.fire(window, 'keydown', { key: '-', code: 'Minus' }, clock.now + 60)
+    clock.fire(window, 'keyup', { key: '-', code: 'Minus' }, clock.now + 60)
+    clock.fire(window, 'keydown', { key: ' ', code: 'Space' }, clock.now + 60)
+    clock.fire(window, 'keyup', { key: ' ', code: 'Space' }, clock.now + 10)
+  }
+
+  it('Undo lets go of focus when clicked, so Enter afterwards does nothing, and shows what it took back', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    keyT(clock)
+    keyT(clock)
+    const undo = screen.getByRole('button', { name: 'Undo' })
+    undo.focus()
+    fireEvent.click(undo)
+    expect(document.activeElement).not.toBe(undo)
+    expect(screen.getByText('Took back')).toBeTruthy()
+    expect(screen.getByText('dash')).toBeTruthy()
+    const strip = () => document.querySelectorAll('section[aria-label=Transmission] span.w-10').length
+    const before = strip()
+    clock.fire(document.activeElement ?? document.body, 'keydown', { key: 'Enter', code: 'Enter' }, clock.now + 100)
+    clock.fire(document.activeElement ?? document.body, 'keyup', { key: 'Enter', code: 'Enter' }, clock.now + 50)
+    expect(strip()).toBe(before)
+  })
+
+  it('Start over lets go of focus when clicked, so Enter cannot trigger it again', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    const startOver = screen.getByRole('button', { name: 'Start over' })
+    startOver.focus()
+    fireEvent.click(startOver, { detail: 1 })
+    expect(document.activeElement).not.toBe(startOver)
+    // A run under way, then Enter wherever focus is: nothing is wiped.
+    keyT(clock)
+    keyT(clock)
+    const strip = () => document.querySelectorAll('section[aria-label=Transmission] span.w-10').length
+    expect(strip()).toBe(2)
+    clock.fire(document.activeElement ?? document.body, 'keydown', { key: 'Enter', code: 'Enter' }, clock.now + 100)
+    clock.fire(document.activeElement ?? document.body, 'keyup', { key: 'Enter', code: 'Enter' }, clock.now + 50)
+    expect(strip()).toBe(2)
+  })
+
+  it('no control on the practice screen keeps focus after a pointer click; keyboard activation keeps it', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    keyT(clock)
+    for (const name of ['Dot / dash pad', 'end letter', 'Undo', 'Start over']) {
+      const control = screen.getByRole('button', { name })
+      control.focus()
+      expect(document.activeElement).toBe(control)
+      fireEvent.click(control, { detail: 1 })
+      expect(document.activeElement, name).not.toBe(control)
+    }
+    // Enter or Space on a focused control clicks it with detail 0: a keyboard user's focus stays put.
+    const mode = screen.getByRole('button', { name: 'Dot / dash pad' })
+    mode.focus()
+    fireEvent.click(mode, { detail: 0 })
+    expect(document.activeElement).toBe(mode)
+  })
+})
+
+describe('straight key hint for the pad keys', () => {
+  it('after two presses of . or - on the straight key, says they work in pad mode; a real press clears it', async () => {
+    seed({ onboardingSeen: true, inputMode: 'key' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    const hint = () => screen.queryByText('The . and - keys work in pad mode. On the straight key, hold Space.')
+    clock.fire(window, 'keydown', { key: '.', code: 'Period' }, clock.now + 50)
+    clock.fire(window, 'keyup', { key: '.', code: 'Period' }, clock.now + 50)
+    expect(hint()).toBeNull()
+    clock.fire(window, 'keydown', { key: '-', code: 'Minus' }, clock.now + 50)
+    clock.fire(window, 'keyup', { key: '-', code: 'Minus' }, clock.now + 50)
+    expect(hint()).not.toBeNull()
+    clock.fire(window, 'keydown', { key: ' ', code: 'Space' }, clock.now + 50)
+    clock.fire(window, 'keyup', { key: ' ', code: 'Space' }, clock.now + 60)
+    expect(hint()).toBeNull()
+  })
+
+  it('never shows in pad mode, where those keys are the pads', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    for (const key of ['.', '-', '.']) {
+      clock.fire(window, 'keydown', { key, code: key === '.' ? 'Period' : 'Minus' }, clock.now + 50)
+      clock.fire(window, 'keyup', { key, code: key === '.' ? 'Period' : 'Minus' }, clock.now + 50)
+    }
+    expect(screen.queryByText(/work in pad mode/)).toBeNull()
+  })
+})
+
+describe('iambic feedback on a desktop', () => {
+  it('has the sidetone on by default, sounding while the keyer sends, and it can still be turned off', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20, touchControls: 'off' })
+    const { sidetone } = await import('./lib/sidetone.js')
+    const hold = vi.spyOn(sidetone, 'hold').mockImplementation(() => {})
+    vi.spyOn(sidetone, 'unlock').mockImplementation(() => {})
+    await loadApp()
+    const clock = mockClock(50_000)
+    clock.fire(window, 'keydown', { key: '.', code: 'Period' }, clock.now + 50)
+    expect(hold.mock.calls.some(([, on]) => on === true)).toBe(true)
+    clock.fire(window, 'keyup', { key: '.', code: 'Period' }, clock.now + 30)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+    const choice = within(await screen.findByRole('group', { name: 'Sidetone' }))
+    expect(choice.getByRole('button', { name: 'On' }).getAttribute('aria-pressed')).toBe('true')
+    fireEvent.click(choice.getByRole('button', { name: 'Off' }))
+    expect(stored().sidetone).toBe(false)
+    expect(choice.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed')).toBe('true')
+  })
+
+  it('flashes the pad once per element the keyer sends, not on the press', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20, touchControls: 'off' })
+    await loadApp()
+    const clock = mockClock(50_000)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const pulse = label => Number(screen.getByRole('button', { name: label }).querySelector('[data-pulse]').dataset.pulse)
+    expect([pulse('Dot'), pulse('Dash')]).toEqual([0, 0])
+    // 20 WPM: a dot period is 120 ms. Held 396 ms: elements at 0, 120, 240 and 360 ms.
+    clock.fire(window, 'keydown', { key: '.', code: 'Period' }, clock.now + 50)
+    expect(pulse('Dot')).toBe(1)
+    clock.run(396)
+    clock.fire(window, 'keyup', { key: '.', code: 'Period' }, clock.now)
+    clock.run(600)
+    expect([pulse('Dot'), pulse('Dash')]).toEqual([4, 0])
+    // The flash is the strip's own mark pop, and nothing pops before the first element.
+    const glyph = screen.getByRole('button', { name: 'Dot' }).querySelector('[data-pulse]')
+    expect(glyph.className).toMatch(/animate-mark-pop/)
+    expect(screen.getByRole('button', { name: 'Dash' }).querySelector('[data-pulse]').className).not.toMatch(/animate-mark-pop/)
+  })
+})
+
+describe('the loading screen', () => {
+  it('hands over at the hard timeout, so a fetch that never answers cannot trap anyone behind it', async () => {
+    const { default: App } = await import('./App.jsx')
+    // A board request that never settles, and never rejects either. A spy, not a
+    // module mock, so afterEach's restoreAllMocks undoes it before the next test.
+    const passages = await import('./lib/passages.js')
+    vi.spyOn(passages, 'loadBoard').mockReturnValue(new Promise(() => {}))
+    const clock = mockClock(0)
+    const frames = fakeFrames(clock)
+    vi.useFakeTimers()
+
+    render(<App />)
+    const loader = () => screen.queryByText('Loading Morse Club')
+    expect(loader()).not.toBeNull()
+
+    // Nearly ten seconds in and the board still hasn't come: the loader holds.
+    act(() => {
+      vi.advanceTimersByTime(9_900)
+    })
+    frames.step(9_900)
+    expect(loader()).not.toBeNull()
+
+    // Then the timeout releases it, and the resolve plays out a frame at a time.
+    for (let elapsed = 0; elapsed < 3_000 && loader() !== null; elapsed += 16) {
+      act(() => {
+        vi.advanceTimersByTime(16)
+      })
+      frames.step(16)
+    }
+
+    expect(loader()).toBeNull()
+    expect(clock.now).toBeGreaterThanOrEqual(10_000)
+    // The app is on screen even though the board never arrived.
+    expect(screen.getByRole('button', { name: 'Setup' })).toBeTruthy()
+    expect(passages.loadBoard).toHaveBeenCalled()
+  })
+
+  it('does not come back once it has handed over', async () => {
+    const clock = mockClock(0)
+    const frames = fakeFrames(clock)
+    seed({ onboardingSeen: true })
+    await loadApp()
+
+    const loader = () => screen.queryByText('Loading Morse Club')
+    // Ready before the entry finishes, so it resolves straight out of it.
+    for (let elapsed = 0; elapsed < 4000 && loader() !== null; elapsed += 16) frames.step(16)
+    expect(loader()).toBeNull()
+    expect(clock.now).toBeLessThan(2200)
+
+    // Nothing brings it back: not switching passages, not opening a modal.
+    fireEvent.click(screen.getByRole('button', { name: /NO\./ }))
+    fireEvent.click(await screen.findByRole('button', { name: /^Passage 2:/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+
+    expect(loader()).toBeNull()
+    expect(frames.queued).toBe(0)
   })
 })

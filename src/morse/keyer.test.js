@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { normalize } from './alphabet.js'
 import { grade } from './grade.js'
-import { createKeyer, interpret } from './keyer.js'
+import { bounceThresholdMs, createKeyer, interpret } from './keyer.js'
 import { seededRandom, synthesizeKeying } from './testing/syntheticKeyer.js'
 import { CONFIG } from './timing.js'
 import { leniencyFor } from '../lib/progress.js'
@@ -58,6 +58,30 @@ describe('raw input hygiene', () => {
     expect(run.text).toBe('ET')
     expect(run.anomalies).toEqual([{ type: 'bounce', t: 400, durationMs: 12 }])
     expect(run.marks[1].gapBeforeMs).toBe(700)
+  })
+
+  it('scales the bounce limit down for a fast operator, so rushed dots at 45 WPM still count', () => {
+    // 45 WPM: a 26.7 ms unit. Dots rushed to 15 ms are under the old fixed 20 ms limit.
+    const log = synthesizeKeying('PARIS PARIS PARIS', { wpm: 45 })
+    for (let i = 0; i < log.length; i += 2) {
+      if (log[i + 1].t - log[i].t < 40) log[i + 1].t = log[i].t + 15
+    }
+    const run = finish(log, { target: 'PARIS PARIS PARIS', unitMs: 26.7 })
+    expect(run.anomalies.filter(anomaly => anomaly.type === 'bounce')).toEqual([])
+    expect(run.text).toBe('PARISPARISPARIS')
+    expect(bounceThresholdMs(log, 26.7)).toBeCloseTo(8, 0)
+  })
+
+  it('still ignores a real bounce at speed, and keeps 20 ms at ordinary speeds', () => {
+    expect(bounceThresholdMs([], 120)).toBe(20)
+    expect(bounceThresholdMs([], 40)).toBe(16)
+    expect(bounceThresholdMs([], 5)).toBe(8)
+    const log = synthesizeKeying('PARIS PARIS', { wpm: 45 })
+    log.splice(4, 0, { type: 'down', t: log[3].t + 2 }, { type: 'up', t: log[3].t + 6 })
+    log.sort((a, b) => a.t - b.t)
+    const run = finish(log, { target: 'PARIS PARIS', unitMs: 26.7 })
+    expect(run.anomalies.filter(anomaly => anomaly.type === 'bounce')).toHaveLength(1)
+    expect(run.text).toBe('PARISPARIS')
   })
 
   it('treats a press over 10u as a dash, flagged', () => {

@@ -1,4 +1,5 @@
 import { DASH, DOT } from '../morse/symbols.js'
+import { ElementPulse } from './DotDashPad.jsx'
 
 /**
  * The keys for a touchscreen. Docked, they float at the bottom of the screen
@@ -6,6 +7,7 @@ import { DASH, DOT } from '../morse/symbols.js'
  * for the straight key, or dot bottom-left and dash bottom-right. Inline, the
  * same keys sit in the page flow (the intro's try-it card). Input handling
  * comes from useMorseInput; leave the props out for a picture of the keys.
+ * `pulses`, with the iambic keyer, pops a pad's glyph once per element it sends.
  */
 export default function TouchKeys({
   mode,
@@ -15,6 +17,7 @@ export default function TouchKeys({
   keyProps,
   padProps,
   letterProps,
+  pulses = null,
   docked = false,
   ref,
 }) {
@@ -55,7 +58,9 @@ export default function TouchKeys({
       className={`flex items-end ${docked ? `justify-between gap-3 ${place}` : 'justify-center gap-6'}`}
     >
       <PadKey label="Dot" held={padsDown[DOT]} docked={docked} decorative={decorative} className="bg-primary" {...padProps?.[DOT]}>
-        <span className="block size-[26px] rounded-full bg-glyph" />
+        <ElementPulse count={pulses?.[DOT]}>
+          <span className="block size-[26px] rounded-full bg-glyph" />
+        </ElementPulse>
       </PadKey>
       {docked && letterProps && (
         <button
@@ -67,7 +72,9 @@ export default function TouchKeys({
         </button>
       )}
       <PadKey label="Dash" held={padsDown[DASH]} docked={docked} decorative={decorative} className="bg-secondary" {...padProps?.[DASH]}>
-        <span className="block h-[26px] w-[54px] rounded-full bg-glyph" />
+        <ElementPulse count={pulses?.[DASH]}>
+          <span className="block h-[26px] w-[54px] rounded-full bg-glyph" />
+        </ElementPulse>
       </PadKey>
     </div>
   )

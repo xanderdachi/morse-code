@@ -66,7 +66,8 @@ describe('alignment', () => {
     const sent = `${at(PASSAGE, 50)}Q${letters(PASSAGE).slice(50)}`
     const result = grade({ target: PASSAGE, sent })
     expect(result.counts).toEqual({ match: 100, substitute: 0, insert: 1, delete: 0 })
-    expect(result.accuracy).toBeGreaterThanOrEqual(99) // matches ÷ target length: an insertion displaces nothing
+    // An insertion displaces nothing, but it does count: 100 matches out of 100 letters plus 1 extra.
+    expect(result.accuracy).toBeCloseTo((100 * 100) / 101, 10)
   })
 
   it('names each operation with what was expected and what arrived', () => {

@@ -44,6 +44,10 @@ function Results({ titleId, result, onNext, onRetry }) {
   const percent = Math.round(result.accuracy)
   const rating = RATINGS.find(r => percent >= r.min)
   const { counts } = result
+  const anomalies = result.anomalies ?? []
+  const tooShort = anomalies.filter(anomaly => anomaly.type === 'bounce').length
+  const repeats = anomalies.filter(anomaly => anomaly.type === 'hold-repeat').length
+  const stalls = anomalies.filter(anomaly => anomaly.type === 'keyer-stall').length
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -63,7 +67,8 @@ function Results({ titleId, result, onNext, onRetry }) {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <BigStat label="Accuracy" value={`${percent}%`} />
+        {/* Anchored, letter breaks come from the passage: the score is of each letter's dots and dashes. */}
+        <BigStat label={result.anchored ? 'Symbol accuracy' : 'Accuracy'} value={`${percent}%`} />
         {/* The iambic keyer's speed is chosen, not earned, so it is never reported as the operator's. */}
         {result.keyerMode === 'iambic' ? (
           <BigStat label="Iambic keyer" value={`${result.keyerWpm} WPM`} />
@@ -79,6 +84,16 @@ function Results({ titleId, result, onNext, onRetry }) {
         Paused {formatClock(result.pausedMs ?? 0)}, not counted in your time.
         {result.scrubbedLetters > 0 && ` ${scrubbedNote(result)}`}
       </p>
+      {/* What the input did that the operator couldn't see: presses too short to count (graded as missing),
+          iambic holds that sent repeats, and the keyer stopping because the device fell behind. Said plainly, so
+          the grade doesn't read as the app misreading them. */}
+      {(tooShort > 0 || repeats > 0 || stalls > 0) && (
+        <p className="-mt-2.5 rounded-box border-2 border-dashed border-edge px-3.5 py-2.5 text-[13px] font-semibold text-ink">
+          {tooShort > 0 && <span className="block">{tooShortNote(tooShort)}</span>}
+          {repeats > 0 && <span className="block">{repeatsNote(repeats)}</span>}
+          {stalls > 0 && <span className="block">{stallsNote(stalls)}</span>}
+        </p>
+      )}
 
       <div className="rounded-panel border-2 border-edge bg-card px-5 py-[18px]">
         <div className="eyebrow mb-2">What you just sent</div>
@@ -122,6 +137,7 @@ function Results({ titleId, result, onNext, onRetry }) {
         </div>
         <div className="mt-2.5 text-[12px] font-medium text-ink-soft">
           Top row: the passage. Bottom row: what came down the wire.
+          {result.anchored && ' Letter breaks follow the passage, so this checks each letter’s dots and dashes, not your spacing.'}
         </div>
       </div>
 
@@ -158,6 +174,23 @@ function scrubbedNote({ scrubbedLetters, prosign }) {
   return prosign === 'deletion'
     ? `${letters} disregarded with the error prosign, counted as missed at this tier.`
     : `${letters} disregarded with the error prosign, not counted.`
+}
+
+function tooShortNote(count) {
+  return count === 1
+    ? '1 press was too short to register, so it isn’t in what came down the wire.'
+    : `${count} presses were too short to register, so they aren’t in what came down the wire.`
+}
+
+function repeatsNote(count) {
+  return count === 1
+    ? '1 hold sent more than one element — tap once per dot or dash.'
+    : `${count} holds sent more than one element — tap once per dot or dash.`
+}
+
+function stallsNote(count) {
+  const times = count === 1 ? 'once' : `${count} times`
+  return `This device fell behind ${times}, so the keyer stopped instead of guessing: a held paddle may have sent fewer elements than you held it for.`
 }
 
 function BigStat({ label, value }) {

@@ -10,7 +10,10 @@ import { DASH, DOT } from './symbols.js'
 /** Every timing constant in one place. Tune here. */
 export const CONFIG = {
   defaultUnitMs: 120, // starting dot length when the operator hasn't calibrated (10 WPM)
-  minUnitMs: 40,
+  // The unit is kept within these (60 WPM to 3 WPM). The floor must sit well below the fastest operator's real
+  // unit: every threshold is built from the clamped unit, and a floor above it (it was 40 ms, 30 WPM) made the
+  // error path's letter gap longer than a fast operator's actual letter gaps, so one mistake swallowed the rest.
+  minUnitMs: 20,
   maxUnitMs: 400,
   alpha: 0.15, // EMA weight of each new observation
 
@@ -24,17 +27,27 @@ export const CONFIG = {
   pauseUnits: 10,
   pauseMinMs: 2000,
 
-  // Finalizing a run. Once every letter has been sent, max(4u, 800ms) of silence
-  // ends it. Otherwise a pause that has lasted this long ends it: 10s while at
-  // or past the last letter, 60s mid-passage (so thinking stays free).
-  settleUnits: 4,
-  settleMinMs: 800,
+  // Finalizing a run. Once every letter has been sent, max(6u, 1500ms) of silence
+  // ends it: well clear of a letter gap (3u) at any supported speed, since a run
+  // must never end while the operator is still keying. Otherwise a pause that
+  // has lasted this long ends it: 10s while at or past the last letter, 60s
+  // mid-passage (so thinking stays free).
+  settleUnits: 6,
+  settleMinMs: 1500,
   finishPauseAtEndMs: 10_000,
   finishPauseMidMs: 60_000,
 
   prosignAckMs: 2500, // how long the error prosign's acknowledgement stays up
+  undoAckMs: 1500, // how long an undo shows what it removed
 
-  minPressMs: 20, // shorter presses are contact bounce and are ignored
+  // Contact bounce: presses shorter than this are ignored and reported. The limit is bounceUnits of the operator's
+  // dot, read from the run's own key presses (their 10th percentile, once there are bounceReferencePresses of
+  // them) or else the seed unit, held between bounceFloorMs and minPressMs. That is 20 ms at ordinary speeds;
+  // a fast operator's short dots (26 ms at 45 WPM, less when rushed) are never mistaken for bounce.
+  minPressMs: 20,
+  bounceFloorMs: 8,
+  bounceUnits: 0.4,
+  bounceReferencePresses: 10,
   maxPressUnits: 10, // longer presses count as dashes but are flagged and not learned from
 
   // Lock-in: estimate u from the first elements of a run (see estimateUnit) and
@@ -73,7 +86,7 @@ export function pauseGapMs(unitMs, config = CONFIG) {
   return Math.max(config.pauseUnits * unitMs, config.pauseMinMs)
 }
 
-/** Silence after the last letter that ends a run: max(4u, 800ms). */
+/** Silence after the last letter that ends a run: max(6u, 1500ms). */
 export function settleGapMs(unitMs, config = CONFIG) {
   return Math.max(config.settleUnits * unitMs, config.settleMinMs)
 }

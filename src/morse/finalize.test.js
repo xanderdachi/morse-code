@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { normalize, toMorse } from './alphabet.js'
 import { grade } from './grade.js'
 import { createKeyer, interpret } from './keyer.js'
-import { synthesizeKeying } from './testing/syntheticKeyer.js'
+import { playLive } from './testing/liveRun.js'
+import { beginnerScript, synthesizeKeying, synthesizeScript } from './testing/syntheticKeyer.js'
 import { CONFIG, pauseGapMs, settleGapMs } from './timing.js'
 import { unitMsForWpm } from './units.js'
 import { leniencyFor } from '../lib/progress.js'
@@ -236,4 +237,39 @@ describe('unanchored', () => {
     expect(run.text).toBe(lettersOf(TEXT))
     expect(gradeOf(run).wpm).toBeCloseTo(WPM, 6)
   })
+})
+
+describe('never while the operator is still keying', { timeout: 60_000 }, () => {
+  it('unanchored: extra letters mid-passage do not make the run look finished, even through a long think', () => {
+    const letters = lettersOf(TEXT)
+    // The first 30 letters, five garbled extras in the middle of them, then a 6-second think, then the rest.
+    const codes = [...letters.slice(0, 30)].map(char => toMorse(char))
+    const script = [...codes.slice(0, 15), '------', '.......-', '--.--.', '------', '-.-.-.-', ...codes.slice(15)]
+    const head = synthesizeKeying('X'.repeat(script.length), { wpm: 5, codeFor: (_, i) => script[i] })
+    const keyer = createKeyer({ errorGapUnits, target: TEXT, anchored: false, unitMs: unitMsForWpm(5) })
+    feed(keyer, head)
+    const lastUp = head.at(-1).t
+    expect(keyer.state(lastUp).lettersSent).toBeLessThan(letters.length)
+    expect(keyer.state(lastUp).remaining).toBeGreaterThan(10)
+    expect(waitInSilence(keyer, lastUp, lastUp + 6000).finalized).toBe(false)
+  })
+
+  it('a 5 WPM run with 30% wrong letters, anchored or not, ends only after its last press', () => {
+    // Played live, waking at every deadline as the app does, with a beginner's long thinks between letters.
+    for (const anchored of [true, false]) {
+      for (let seed = 1; seed <= 6; seed++) {
+        const log = synthesizeScript(beginnerScript(TEXT, 'wrong-30%', { seed }), {
+          wpm: 5,
+          seed,
+          jitter: 0.2,
+          thinking: { chance: 0.08, ms: [3000, 9000] },
+        })
+        const live = playLive(log, { target: TEXT, anchored, errorGapUnits, unitMs: CONFIG.defaultUnitMs })
+        expect(live.observations.inputAfterFinalize, `${anchored ? 'anchored' : 'unanchored'}, seed ${seed}`).toBe(0)
+        expect(live.finalized).toBe(true)
+        expect(live.finalizedAt).toBeGreaterThan(log.at(-1).t)
+      }
+    }
+  })
+
 })

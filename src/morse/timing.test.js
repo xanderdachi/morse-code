@@ -7,13 +7,15 @@ describe('CONFIG', () => {
     expect(CONFIG).toMatchObject({
       defaultUnitMs: 120,
       alpha: 0.15,
-      minUnitMs: 40,
+      minUnitMs: 20,
       maxUnitMs: 400,
       dashAtUnits: 2,
       intraGapBelowUnits: 2,
       pauseUnits: 10,
       pauseMinMs: 2000,
       minPressMs: 20,
+      bounceFloorMs: 8,
+      bounceUnits: 0.4,
       maxPressUnits: 10,
     })
   })
@@ -72,10 +74,10 @@ describe('UnitEstimator', () => {
     expect(e.unit).toBe(before)
   })
 
-  it('clamps u to [40, 400], including the seed', () => {
+  it('clamps u to [20, 400], including the seed', () => {
     const fast = new UnitEstimator(100)
     for (let i = 0; i < 100; i++) fast.learnPress(1, DOT)
-    expect(fast.unit).toBe(40)
+    expect(fast.unit).toBe(20)
     expect(new UnitEstimator(5000).unit).toBe(400)
     expect(new UnitEstimator(Number.NaN).unit).toBe(120)
   })

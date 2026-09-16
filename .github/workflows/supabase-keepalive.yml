@@ -1,0 +1,47 @@
+# Keeps the free Supabase project awake. Free projects pause after 7 days without API requests, and a paused
+# project doesn't break anything visibly: the app quietly falls back to its bundled passages. One read a day
+# prevents the pause, and a failed read fails this workflow, which emails the repository owner.
+#
+# Needs two repository secrets (Settings → Secrets and variables → Actions), the same values as the app's
+# VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY: SUPABASE_URL and SUPABASE_ANON_KEY.
+
+name: Supabase keep-alive
+
+on:
+  schedule:
+    - cron: '17 6 * * *' # daily at 06:17 UTC; off the hour, where GitHub delays scheduled runs least
+  workflow_dispatch: # run it by hand from the Actions tab to check the secrets
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read one active passage
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::The SUPABASE_URL and SUPABASE_ANON_KEY repository secrets are not set."
+            exit 1
+          fi
+          # The same request the app makes: the anon key as apikey and bearer token, against the passages table.
+          status=$(curl --silent --show-error --max-time 30 --retry 2 --retry-delay 10 \
+            --output response.json --write-out '%{http_code}' \
+            --header "apikey: $SUPABASE_ANON_KEY" \
+            --header "Authorization: Bearer $SUPABASE_ANON_KEY" \
+            "${SUPABASE_URL%/}/rest/v1/passages?select=id&active=eq.true&limit=1")
+          if [ "$status" != "200" ]; then
+            echo "::error::Supabase answered HTTP $status, not 200. The project may be paused or the key revoked."
+            head -c 500 response.json
+            exit 1
+          fi
+          # A 200 with no rows means the app would still fall back to bundled passages (no data, or row-level security).
+          if ! grep -q '"id"' response.json; then
+            echo "::error::Supabase answered 200 but returned no active passages."
+            exit 1
+          fi
+          echo "Supabase is awake: HTTP 200, active passages readable."

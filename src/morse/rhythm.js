@@ -92,7 +92,7 @@ export function analyzeRhythm(elements, { seedUnitMs = CONFIG.defaultUnitMs, loo
         const symbol = logs[k] < clusters.split ? DOT : DASH
         if (symbol !== symbols[i]) changed = true
         symbols[i] = symbol
-        // Classification uses the raw local unit (fine above 30 WPM); thresholds use the clamped one.
+        // Classification uses the raw local unit; thresholds use the clamped one (CONFIG.minUnitMs is 60 WPM).
         units[i] = Math.min(config.maxUnitMs, Math.max(config.minUnitMs, local[k]))
       })
       if (!changed) break

@@ -1,5 +1,19 @@
 # React + Vite
 
+## Supabase keep-alive: don't delete it
+
+`.github/workflows/supabase-keepalive.yml` runs once a day and reads one active passage from Supabase.
+
+- **Why it exists:** free Supabase projects pause after seven days with no API requests. A paused project doesn't look broken. The app quietly falls back to its bundled passages, so a quiet week would go unnoticed and unreported.
+- **What it checks:** the workflow fails, and GitHub emails you, when Supabase answers anything but HTTP 200, or answers 200 with no active passages.
+- **Setup:** add two repository secrets under Settings → Secrets and variables → Actions:
+  - `SUPABASE_URL`, the same value as `VITE_SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`, the same value as `VITE_SUPABASE_ANON_KEY`
+
+  With the GitHub CLI, run `gh secret set SUPABASE_URL` and `gh secret set SUPABASE_ANON_KEY`; each prompts for its value. The key never goes in the workflow file.
+- **Check it:** start it by hand from the Actions tab with *Run workflow*.
+- **Watch for:** GitHub turns scheduled workflows off after 60 days with no repository activity in a public repository, and it emails you when it does. If that email arrives, re-enable the workflow from the Actions tab.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

@@ -392,7 +392,7 @@ describe('setCalibration', () => {
     const { defaultProgress, setCalibration, saveProgress, loadProgress } = progressModule
     saveProgress(setCalibration(defaultProgress(), 72.5))
     expect(loadProgress().unitMs).toBe(72.5)
-    expect(setCalibration(defaultProgress(), 5).unitMs).toBe(40)
+    expect(setCalibration(defaultProgress(), 5).unitMs).toBe(20)
     expect(setCalibration(defaultProgress(), 9000).unitMs).toBe(400)
   })
 
@@ -458,12 +458,22 @@ describe('touch controls', () => {
 })
 
 describe('sidetone', () => {
-  it('is on by default exactly when touch controls are in use, until the player chooses', () => {
+  it('is on by default when touch controls are in use, until the player chooses', () => {
     const { defaultProgress, setSidetone, sidetoneOn } = progressModule
     const progress = defaultProgress()
     expect([sidetoneOn(progress, true), sidetoneOn(progress, false)]).toEqual([true, false])
     expect([sidetoneOn(setSidetone(progress, false), true), sidetoneOn(setSidetone(progress, true), false)]).toEqual([false, true])
     expect(sidetoneOn(setSidetone(setSidetone(progress, false), null), true)).toBe(true)
+  })
+
+  it('is on by default with the iambic keyer on every device, and the player can still turn it off', () => {
+    const { defaultProgress, setInputMode, setKeyerMode, setSidetone, sidetoneOn } = progressModule
+    const iambic = setKeyerMode(setInputMode(defaultProgress(), 'pad'), 'iambic')
+    expect(sidetoneOn(iambic, false)).toBe(true)
+    expect(sidetoneOn(setSidetone(iambic, false), false)).toBe(false)
+    // The manual pad on a desktop keeps the quiet default; so does the straight key with iambic left selected.
+    expect(sidetoneOn(setKeyerMode(iambic, 'manual'), false)).toBe(false)
+    expect(sidetoneOn(setInputMode(iambic, 'key'), false)).toBe(false)
   })
 
   it('persists the choice', () => {

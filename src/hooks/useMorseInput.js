@@ -44,6 +44,7 @@ const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
  *   sidetone     sound a tone while the key is down (for the iambic keyer, while an element sounds)
  *   haptics      buzz briefly on each touch press (each generated element, iambic), where the device can
  *   beforePress  called before a new press is accepted; return false to refuse it
+ *   onIgnoredKey called when . or - is pressed on the straight key, where they do nothing
  *   onUpdate     called with the live state whenever it changes
  *   onFinalize   called once with the fixed result when the run ends, however it ended
  *
@@ -63,7 +64,28 @@ const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
  * Iambic: the pads are paddles. Presses and releases go to the iambic keyer
  * (src/morse/iambic.js) and the elements it generates go into the keyer log at
  * their exact times; `padsDown` shows the paddles held. A pointercancel, blur
- * or hidden page stops it outright: no memory, no Mode B element.
+ * or hidden page stops it outright: no memory, no Mode B element. `pulses`
+ * counts the elements generated on each paddle, one per element and never for
+ * the press itself, for a pad to flash as each one goes out.
+ *
+ * The keyer never runs away from the operator. It decides what a held paddle does
+ * only once a release stamped before the decision would have reached the page: its
+ * decisions trail the clock by the input lag paddle events have shown lately (at
+ * most MAX_DECISION_DELAY_MS). The element a press starts always goes out at once.
+ * The keyer stops outright (paddles let go, memory dropped, nothing more until the
+ * next press) when a hold reaches MAX_HOLD_ELEMENTS, or when any other element (a
+ * repeat, dot or dash memory, Mode B's trailing element) is due more than one
+ * element period before the keyer gets to it, or while paddle events are reaching
+ * the page later than MAX_DECISION_DELAY_MS: the page is behind, a release may
+ * still be queued, and sending would be guessing. Timestamps in the log are exact
+ * either way; only when the sidetone and pulse hear about an element can trail.
+ *
+ * Anomalies the keyer adds to the finalized run:
+ *   { type: 'hold-repeat', t, durationMs, elements, periodMs, capped? }  a single-paddle hold
+ *       that sent two or more elements (holding for every element sends the wrong letter unheard)
+ *   { type: 'keyer-stall', t, driftMs, suppressed }  the keyer stopped because the page was driftMs
+ *       behind at t (its timer, or paddle events reaching it), and didn't send the `suppressed`
+ *       elements it had decided on by then
  */
 export function useMorseInput({
   mode = 'key',
@@ -78,12 +100,13 @@ export function useMorseInput({
   sidetone = false,
   haptics = false,
   beforePress,
+  onIgnoredKey,
   onUpdate,
   onFinalize,
 } = {}) {
-  const optionsRef = useRef({ beforePress, undoEnabled, sidetone, haptics, onUpdate, onFinalize })
+  const optionsRef = useRef({ beforePress, undoEnabled, sidetone, haptics, onIgnoredKey, onUpdate, onFinalize })
   useLayoutEffect(() => {
-    optionsRef.current = { beforePress, undoEnabled, sidetone, haptics, onUpdate, onFinalize }
+    optionsRef.current = { beforePress, undoEnabled, sidetone, haptics, onIgnoredKey, onUpdate, onFinalize }
   })
 
   const iambic = mode === 'pad' && keyerMode === 'iambic'
@@ -256,6 +279,7 @@ export function useMorseInput({
         return
       }
       if (mode === 'key') {
+        if (PAD_KEYS[event.key] && !event.repeat) optionsRef.current.onIgnoredKey?.(event.key)
         if (event.code !== 'Space') return
         event.preventDefault()
         // Auto-repeat fires keydown continuously while held; only the first is a press.
@@ -311,20 +335,140 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
   let iambic = iambicOn ? createIambicKeyer({ wpm: keyerWpm }) : null
   let iambicTimer = null
   let paddleSource = null // how the last paddle was pressed, for haptics per element
-  let snapshot = toSnapshot(keyer.state(performance.now()), null, iambic?.paddles)
+  let pulses = NO_PULSES // elements generated per paddle
+  // Each paddle's hold while it's down: { start, end, elements, squeezed, stalled, capped, periodMs }.
+  let holds = {}
+  let keyerAnomalies = [] // hold-repeat and keyer-stall, for the finalized run
+  let pressedAt = { [DOT]: null, [DASH]: null } // each paddle's last press, until an element answers it
+  let paddleLags = [] // how late the last few paddle events reached the page, ms
+
+  // A paddle event stamped `t` has just reached the page.
+  function notePaddleLag(t) {
+    paddleLags.push(Math.max(0, performance.now() - t))
+    if (paddleLags.length > PADDLE_LAG_SAMPLES) paddleLags.shift()
+  }
+
+  // How far the keyer's decisions trail the clock: the most any recent paddle event lagged, within reason.
+  const decisionDelayMs = () => Math.min(MAX_DECISION_DELAY_MS, Math.max(0, ...paddleLags))
+  let reported = { run: null, withAnomalies: null }
+  let snapshot = toSnapshot(keyer.state(performance.now()), null, iambic?.paddles, pulses)
   let timer = null
   let announced = null // the finalized run the finalize handler was last called with
   let holding = false
   let handlers = {}
 
-  // Hand the keyer every element the iambic keyer has made by now, stamped with its exact time.
+  // Hand the keyer every element the iambic keyer has decided on by now (less the decision delay), stamped with
+  // its exact time, unless the keyer has run away from the operator (see runawayBefore).
   function flushIambic() {
     if (!iambic) return
-    for (const event of iambic.advance(performance.now())) {
+    const decidedBy = performance.now() - decisionDelayMs()
+    const events = iambic.advance(decidedBy)
+    for (const [i, event] of events.entries()) {
+      const stop = event.type === 'down' ? runawayBefore(event, decidedBy) : null
+      if (stop) {
+        giveUp(events.slice(i), stop)
+        return
+      }
       const accepted = event.type === 'down' ? keyer.padDown(event.pad, event.t) : keyer.padUp(event.pad, event.t)
       if (accepted) syncHolding()
-      if (accepted && event.type === 'down') handlers.element?.(paddleSource)
+      if (accepted && event.type === 'down') {
+        handlers.element?.(paddleSource)
+        pulses = { ...pulses, [event.pad]: pulses[event.pad] + 1 }
+        pressedAt = { ...pressedAt, [event.pad]: null }
+        const hold = holdOf(event)
+        if (hold) hold.elements++
+      }
     }
+  }
+
+  // An element and its space, ms.
+  const elementPeriodMs = pad => ((pad === DOT ? 1 : 3) + 1) * iambic.unitMs
+
+  // The open hold an element belongs to: its paddle down from no later than the element's start until after it.
+  function holdOf(event) {
+    const hold = holds[event.pad]
+    return hold && event.t >= hold.start && (hold.end === null || event.t < hold.end) ? hold : null
+  }
+
+  /**
+   * Whether the keyer must stop before this element instead of sending it:
+   *   capped  its hold has already sent MAX_HOLD_ELEMENTS. No character is that long: the paddle is stuck.
+   *   stall   it was due more than one element period before `decidedBy`, the time the keyer has decided up
+   *           to, or paddle events are reaching the page later than the keyer can wait for them. Either way
+   *           the page is behind, a release stamped before the element may still be queued, and sending it
+   *           would be a guess. Under load those guesses ran away: 3,682 extra elements in one run at 35 WPM
+   *           on a 4x-throttled CPU.
+   * The element a press starts (at once, or at the decision within a period of it) is never a guess, however
+   * late the press reached the page: the operator pressed.
+   */
+  function runawayBefore(event, decidedBy) {
+    const hold = holdOf(event)
+    if (hold && hold.elements >= MAX_HOLD_ELEMENTS) return { reason: 'capped', hold }
+    const period = elementPeriodMs(event.pad)
+    const pressed = pressedAt[event.pad]
+    if (pressed !== null && event.t >= pressed && event.t - pressed <= period) return null
+    const driftMs = decidedBy - event.t
+    if (driftMs > period) return { reason: 'stall', driftMs }
+    const inputLagMs = Math.max(0, ...paddleLags)
+    return inputLagMs > MAX_DECISION_DELAY_MS ? { reason: 'stall', driftMs: inputLagMs } : null
+  }
+
+  // Stop the keyer before rest[0]: nothing in `rest` is sent, every paddle counts as released until it's
+  // pressed again, and dot or dash memory is dropped rather than sent late.
+  function giveUp(rest, { reason, driftMs, hold: cappedHold }) {
+    const at = rest[0].t
+    iambic.reset()
+    pressedAt = { [DOT]: null, [DASH]: null }
+    if (reason === 'stall') {
+      keyerAnomalies.push({ type: 'keyer-stall', t: at, driftMs, suppressed: rest.filter(event => event.type === 'down').length })
+    }
+    for (const hold of Object.values(holds)) {
+      hold.end ??= at
+      if (reason === 'stall') hold.stalled = true
+    }
+    if (cappedHold) cappedHold.capped = true
+    closeHolds([DOT, DASH], at)
+  }
+
+  function openHold(pad, t) {
+    const other = pad === DOT ? DASH : DOT
+    const squeezed = Boolean(holds[other])
+    if (holds[other]) holds[other].squeezed = true
+    holds[pad] = { start: t, end: null, elements: 0, squeezed, stalled: false, capped: false, periodMs: elementPeriodMs(pad) }
+  }
+
+  // Once the keyer knows each hold's end and the elements before it are flushed.
+  function closeHolds(pads, t) {
+    for (const pad of pads) {
+      const hold = holds[pad]
+      if (!hold) continue
+      delete holds[pad]
+      // A squeeze alternates by design, and a stalled hold's length says nothing about the operator: only a
+      // single paddle held through repeats is reported.
+      if (hold.elements >= 2 && !hold.squeezed && !hold.stalled) {
+        keyerAnomalies.push({
+          type: 'hold-repeat',
+          t: hold.start,
+          durationMs: (hold.end ?? t) - hold.start,
+          elements: hold.elements,
+          periodMs: hold.periodMs,
+          ...(hold.capped && { capped: true }),
+        })
+      }
+    }
+  }
+
+  function endAllHolds(t) {
+    for (const hold of Object.values(holds)) hold.end ??= t
+  }
+
+  // The finalized run with the keyer's own anomalies merged in: the same object for the same run.
+  function withKeyerAnomalies(run) {
+    if (reported.run !== run) {
+      const anomalies = keyerAnomalies.length ? [...run.anomalies, ...keyerAnomalies].sort((a, b) => a.t - b.t) : run.anomalies
+      reported = { run, withAnomalies: anomalies === run.anomalies ? run : { ...run, anomalies } }
+    }
+    return reported.withAnomalies
   }
 
   // Flush, re-read, and sleep until the iambic keyer's next element boundary.
@@ -334,7 +478,7 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     flushIambic()
     refresh()
     const next = iambic?.nextEventAt ?? null
-    if (next !== null) iambicTimer = setTimeout(pumpIambic, Math.max(0, next - performance.now()))
+    if (next !== null) iambicTimer = setTimeout(pumpIambic, Math.max(0, next + decisionDelayMs() - performance.now()))
   }
 
   // Tell the delegate when the key goes down or comes up, before anything slower runs.
@@ -352,7 +496,7 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     const result = keyer.update(now)
     syncHolding()
     const previous = snapshot
-    snapshot = toSnapshot(result, snapshot, iambic?.paddles)
+    snapshot = toSnapshot(result.finalized ? withKeyerAnomalies(result) : result, snapshot, iambic?.paddles, pulses)
     if (snapshot !== previous) {
       for (const listener of listeners) listener()
     }
@@ -364,7 +508,7 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     // Handlers last: they may reset the store, which refreshes again from scratch.
     if (result.finalized && result !== announced) {
       announced = result
-      handlers.finalize?.(result)
+      handlers.finalize?.(withKeyerAnomalies(result))
     }
     if (snapshot !== previous) handlers.update?.(snapshot)
   }
@@ -411,16 +555,22 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     paddleDown(pad, t, source) {
       if (!iambic) return act(keyer.padDown)(pad, t)
       if (keyer.finalized || iambic.paddles[pad]) return false
+      notePaddleLag(t)
       paddleSource = source
       iambic.press(pad, t)
+      openHold(pad, t)
+      pressedAt = { ...pressedAt, [pad]: t }
       pumpIambic()
       return true
     },
 
     paddleUp(pad, t) {
       if (!iambic) return act(keyer.padUp)(pad, t)
+      notePaddleLag(t)
       iambic.release(pad, t)
+      if (holds[pad]) holds[pad].end = t
       pumpIambic()
+      closeHolds([pad], t)
       return true
     },
 
@@ -428,7 +578,9 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     cancelPaddle(pad, t) {
       if (!iambic) return act(keyer.padUp)(pad, t)
       iambic.stop(t)
+      endAllHolds(t)
       pumpIambic()
+      closeHolds([DOT, DASH], t)
       return true
     },
 
@@ -436,24 +588,33 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
     stopPaddles(t) {
       if (!iambic) return
       iambic.stop(t)
+      endAllHolds(t)
       pumpIambic()
+      closeHolds([DOT, DASH], t)
     },
 
     /** The Finish control: end the run now, whatever was sent. Returns the result, including its keystroke log. */
     finish() {
       const now = performance.now()
       iambic?.stop(now)
+      endAllHolds(now)
       flushIambic()
+      closeHolds([DOT, DASH], now)
       const run = keyer.finish(now)
       syncHolding()
       refresh()
-      return run
+      return withKeyerAnomalies(run)
     },
 
     reset() {
       clearTimeout(iambicTimer)
       iambicTimer = null
       iambic?.reset()
+      holds = {}
+      keyerAnomalies = []
+      pressedAt = { [DOT]: null, [DASH]: null }
+      paddleLags = []
+      pulses = NO_PULSES
       keyer.reset()
       syncHolding()
       refresh()
@@ -461,8 +622,11 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
 
     configure({ iambic: nextIambic, keyerWpm: wpm, ...options }) {
       if (nextIambic !== (iambic !== null)) {
-        iambic?.stop(performance.now())
+        const now = performance.now()
+        iambic?.stop(now)
+        endAllHolds(now)
         flushIambic()
+        closeHolds([DOT, DASH], now)
         clearTimeout(iambicTimer)
         iambicTimer = null
         iambic = nextIambic ? createIambicKeyer({ wpm }) : null
@@ -482,9 +646,18 @@ function createKeyerStore({ unitMs, target, anchored, errorGapUnits, iambic: iam
   }
 }
 
+const NO_PULSES = Object.freeze({ [DOT]: 0, [DASH]: 0 })
+
+// The most elements one iambic hold sends. No Morse character is longer than 6, so a hold past this is never intended.
+const MAX_HOLD_ELEMENTS = 8
+// The iambic keyer's decisions trail the clock by the largest lag among this many recent paddle events, up to
+// MAX_DECISION_DELAY_MS: past that the page is too far behind to key on, and the stall rule takes over.
+const PADDLE_LAG_SAMPLES = 8
+const MAX_DECISION_DELAY_MS = 500
+
 // Only what the UI renders, reusing the previous snapshot when nothing it shows changed.
-// `paddles`, with the iambic keyer on, stands in for the pads held.
-function toSnapshot(result, previous, paddles) {
+// `paddles`, with the iambic keyer on, stands in for the pads held; `pulses` counts its elements per paddle.
+function toSnapshot(result, previous, paddles, pulses) {
   const next = {
     run: result.finalized ? result : null,
     strip: result.strip,
@@ -492,12 +665,14 @@ function toSnapshot(result, previous, paddles) {
     remaining: result.remaining,
     scrubbedLetters: result.scrubbedLetters,
     prosignHeard: result.prosignHeard,
+    tookBack: result.tookBack,
     text: result.text,
     cursor: result.cursor,
     complete: result.complete,
     paused: result.paused,
     isKeyDown: result.isKeyDown,
     padsDown: paddles ?? result.padsDown,
+    pulses,
     dashFormed: result.dashFormed,
     startedAt: result.startedAt,
     lastEnd: result.endedAt,

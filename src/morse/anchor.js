@@ -7,10 +7,15 @@
 //   buffer diverges                  the boundary is unknown: fall back to timing
 //
 // On the error path the letter is segmented by timing (a gap of the leniency
-// table's errorGapUnits), and a small beam of hypotheses about what the wrong
-// letter was (a substitution, an omission of the expected letter, or an
-// insertion) keeps decoding in parallel until one resyncs with two exact
-// matches in a row.
+// table's errorGapUnits), and a beam of hypotheses about what the wrong letter
+// was (a substitution, an omission of the expected letter, or an insertion)
+// keeps decoding in parallel until one resyncs with three exact matches in a row.
+// Real text repeats letter pairs ("ANCE AND"), so two matches can be chance;
+// until the beam lets go, equally cheap hypotheses are ranked by how little
+// they assume was skipped or added, since beginners mostly send the wrong letter
+// rather than too many or too few. If no hypothesis has matched for a long
+// stretch, the beam is dropped and the decoder re-anchors where its recent
+// letters best line up with the passage.
 //
 // Two facts about Morse itself apply on the error path, whatever the passage:
 //   - After every symbol the buffer must still be a prefix of some code
@@ -31,9 +36,18 @@ import { UNKNOWN_CHAR } from './decode.js'
 import { CONFIG, errorGapMs, requireErrorGapUnits } from './timing.js'
 import { ERROR_PROSIGN, isCodePrefix } from './trie.js'
 
-const BEAM_WIDTH = 3
-const RESYNC_STREAK = 2 // consecutive exact matches that end the error path
+const BEAM_WIDTH = 8
+// Splitting where the timing says the symbols were one letter: enough to break a tie, never to beat a real match.
+const SPLIT_PENALTY = 0.5
+const IN_STEP_LETTERS = 3 // a letter follows this many exact matches: the merge above is worth considering
+const RESYNC_STREAK = 3 // consecutive exact matches that end the error path
 const CLEAR_LEAD = 2 // a hypothesis this much cheaper than the next wins outright
+// Hard resync: after this many letters with no exact match in any hypothesis, re-anchor the
+// last REANCHOR_LETTERS letters within ±REANCHOR_WINDOW of the cursor, if enough of them line up.
+const REANCHOR_AFTER = 8
+const REANCHOR_LETTERS = 5
+const REANCHOR_WINDOW = 6
+const REANCHOR_MIN_MATCHES = 3
 
 /**
  * Segment a run's marks into letters against a target.
@@ -47,9 +61,10 @@ const CLEAR_LEAD = 2 // a hypothesis this much cheaper than the next wins outrig
  *   unitMs         the unit governing that silence
  *   lastEnd        when the last mark ended, for nextCheckAt
  *
- * Returns { letters, pendingIds, cursor, complete, nextCheckAt, beamWidth, scrubs }.
+ * Returns { letters, pendingIds, cursor, complete, nextCheckAt, beamWidth, scrubs, undos }.
  * letters: [{ code, char, markIds, kind: 'match' | 'error' | 'overrun' }] in order.
  * scrubs: [{ markIds, letter }] for each error prosign, with the letter it took back (or null).
+ * undos: [{ t, markIds }] for each undo, with the marks it removed (none if there was nothing to undo).
  */
 export function anchorLetters(
   steps,
@@ -66,22 +81,36 @@ export function anchorLetters(
     endsLetter: mark => mark.gapBeforeMs !== null && mark.gapBeforeMs >= errorGapMs(mark.gapUnitMs, errorGapUnits),
   }
   let beam = [
-    { cursor: 0, buffer: '', bufferIds: [], mode: 'anchored', absorb: null, streak: 0, cost: 0, letters: null, before: null, scrubs: [] },
+    {
+      cursor: 0,
+      buffer: '',
+      bufferIds: [],
+      mode: 'anchored',
+      absorb: null,
+      streak: 0,
+      cost: 0,
+      sent: 0,
+      sinceMatch: 0,
+      letters: null,
+      before: null,
+      scrubs: [],
+      undos: [],
+    },
   ]
 
   for (const step of steps) {
-    if (step.type === 'mark') beam = settle(beam.flatMap(h => advance(h, marks[step.id], ctx)))
-    else if (step.type === 'boundary') beam = settle(beam.flatMap(h => closeLetter(h, ctx)))
-    else if (step.type === 'undo') beam = [undo(beam[0])]
+    if (step.type === 'mark') beam = settle(beam.flatMap(h => advance(h, marks[step.id], ctx)), ctx)
+    else if (step.type === 'boundary') beam = settle(beam.flatMap(h => closeLetter(h, ctx)), ctx)
+    else if (step.type === 'undo') beam = [undo(beam[0], step.t)]
   }
 
   let nextCheckAt = null
   if (final) {
-    beam = settle(beam.flatMap(h => closeLetter(h, ctx)))
+    beam = settle(beam.flatMap(h => closeLetter(h, ctx)), ctx)
   } else if (silenceMs !== null && beam.some(h => h.mode === 'error' && h.buffer)) {
     // Only the error path listens to silence; an anchored buffer waits indefinitely.
     const limit = errorGapMs(unitMs, errorGapUnits)
-    if (silenceMs >= limit) beam = settle(beam.flatMap(h => (h.mode === 'error' ? closeLetter(h, ctx) : [h])))
+    if (silenceMs >= limit) beam = settle(beam.flatMap(h => (h.mode === 'error' ? closeLetter(h, ctx) : [h])), ctx)
     else if (lastEnd !== null) nextCheckAt = lastEnd + limit
   }
 
@@ -94,6 +123,7 @@ export function anchorLetters(
     nextCheckAt,
     beamWidth: beam.length,
     scrubs: best.scrubs,
+    undos: best.undos,
   }
 }
 
@@ -118,6 +148,17 @@ function anchoredStep(h, mark, ctx) {
   // Diverged (or past the end). Where this letter ends is no longer known, so re-read its marks by timing.
   let hypotheses = [{ ...h, mode: 'error', buffer: '', bufferIds: [], streak: 0 }]
   for (const id of bufferIds) hypotheses = hypotheses.flatMap(x => advance(x, ctx.marks[id], ctx))
+
+  // If this letter began with no letter gap after one that matched, the match may have been too
+  // early: H sent where S belongs matches S at its third dot. Re-read both as one letter too, and
+  // make the split pay for ignoring the timing.
+  // Only while in step: during recovery from a burst of mistakes the extra hypotheses crowd out the real alignment.
+  const previous = h.letters?.letter
+  if (previous?.kind === 'match' && h.before && inStep(h) && !ctx.endsLetter(ctx.marks[bufferIds[0]])) {
+    let merged = [{ ...h.before, mode: 'error', buffer: '', bufferIds: [], streak: 0, scrubs: h.scrubs }]
+    for (const id of [...previous.markIds, ...bufferIds]) merged = merged.flatMap(x => advance(x, ctx.marks[id], ctx))
+    hypotheses = [...hypotheses.map(x => ({ ...x, cost: x.cost + SPLIT_PENALTY })), ...merged]
+  }
   return hypotheses
 }
 
@@ -163,10 +204,13 @@ function commit(h, code, markIds, { cursor, cost, streak, kind }) {
     absorb: null,
     streak,
     cost: h.cost + cost,
+    sent: h.sent + 1,
+    sinceMatch: kind === 'match' ? 0 : h.sinceMatch + 1,
     letters: { letter: { code, char: fromMorse(code) ?? UNKNOWN_CHAR, markIds, kind }, previous: h.letters },
     // The state just before this letter began, for undo and the error prosign.
     before: { ...h, buffer: '', bufferIds: [], mode: 'anchored', absorb: null, streak: 0 },
     scrubs: h.scrubs,
+    undos: h.undos,
   }
 }
 
@@ -194,26 +238,65 @@ function scrub(h) {
     absorb: 'prosign',
     streak: 0,
     scrubs: [...h.scrubs, { markIds: h.bufferIds, letter }],
+    undos: h.undos,
   }
 }
 
 // Undo drops the letter in progress, or else the last committed letter. Prosigns already sent stay sent.
-function undo(h) {
-  if (h.buffer) return { ...h, buffer: '', bufferIds: [], mode: 'anchored', absorb: null, streak: 0 }
-  return h.before ? { ...h.before, scrubs: h.scrubs } : { ...h, absorb: null }
+function undo(h, t) {
+  if (h.buffer) {
+    const undos = [...h.undos, { t, markIds: h.bufferIds }]
+    return { ...h, buffer: '', bufferIds: [], mode: 'anchored', absorb: null, streak: 0, undos }
+  }
+  const undos = [...h.undos, { t, markIds: h.letters?.letter.markIds ?? [] }]
+  return h.before ? { ...h.before, scrubs: h.scrubs, undos } : { ...h, absorb: null, undos }
 }
 
-function settle(hypotheses) {
+function settle(hypotheses, ctx) {
   const unique = new Map()
   for (const h of hypotheses) {
     const key = `${h.cursor}|${h.mode}|${h.buffer}|${h.absorb}`
     const existing = unique.get(key)
     if (!existing || h.cost < existing.cost) unique.set(key, h)
   }
-  // Stable sort: equal costs keep generation order (substitution, omission, insertion).
-  const beam = [...unique.values()].sort((a, b) => a.cost - b.cost).slice(0, BEAM_WIDTH)
+  // Cheapest first; on a tie, whichever assumes the fewest letters skipped or added. Stable after that.
+  const beam = [...unique.values()].sort((a, b) => a.cost - b.cost || drift(a) - drift(b)).slice(0, BEAM_WIDTH)
   if (beam.length > 1 && (beam[0].streak >= RESYNC_STREAK || beam[0].cost + CLEAR_LEAD <= beam[1].cost)) return [beam[0]]
+  if (beam.every(h => h.sinceMatch >= REANCHOR_AFTER)) return [reanchor(beam[0], ctx.target)]
   return beam
+}
+
+// How far a hypothesis's place in the passage has drifted from the number of letters sent.
+const drift = h => Math.abs(h.cursor - h.sent)
+
+// The last few letters committed were all exact matches.
+function inStep(h) {
+  let n = 0
+  for (let node = h.letters; node && n < IN_STEP_LETTERS; node = node.previous, n++) {
+    if (node.letter.kind !== 'match') return false
+  }
+  return true
+}
+
+// Hard resync: the beam has lost the passage. Put the cursor where the last few letters line up best
+// with the passage around it, staying put on a tie, and only if enough of them line up at all.
+function reanchor(h, target) {
+  const settled = { ...h, sinceMatch: 0 }
+  const recent = toArray(h.letters)
+    .slice(-REANCHOR_LETTERS)
+    .map(letter => letter.char)
+  if (recent.length < REANCHOR_LETTERS) return settled
+  const linedUpAt = cursor => recent.reduce((n, char, i) => n + (target[cursor - recent.length + i] === char ? 1 : 0), 0)
+  let best = { cursor: h.cursor, matches: linedUpAt(h.cursor) }
+  for (let d = 1; d <= REANCHOR_WINDOW; d++) {
+    for (const cursor of [h.cursor - d, h.cursor + d]) {
+      if (cursor < 0 || cursor > target.length) continue
+      const matches = linedUpAt(cursor)
+      if (matches > best.matches) best = { cursor, matches }
+    }
+  }
+  if (best.cursor === h.cursor || best.matches < REANCHOR_MIN_MATCHES) return settled
+  return { ...settled, cursor: best.cursor, sent: best.cursor, streak: 0 }
 }
 
 function toArray(node) {

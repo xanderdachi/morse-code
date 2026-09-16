@@ -221,9 +221,13 @@ export function setSidetone(progress, on) {
   return { ...progress, sidetone: typeof on === 'boolean' ? on : null }
 }
 
-/** Whether the sidetone plays: the player's choice, else on exactly when touch controls are in use. */
+/**
+ * Whether the sidetone plays: the player's choice, else on when touch controls are in use or the iambic
+ * keyer is (on every device: its elements come off a timer, and the tone is how an operator hears how
+ * many a hold sent).
+ */
 export function sidetoneOn(progress, touchControls) {
-  return progress.sidetone ?? Boolean(touchControls)
+  return progress.sidetone ?? (Boolean(touchControls) || usesIambic(progress))
 }
 
 /** 'manual' or 'iambic', for the dot/dash pad. */

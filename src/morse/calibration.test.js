@@ -38,7 +38,8 @@ describe('calibrate', () => {
   })
 
   it('clamps to the estimator range', () => {
-    expect(calibrate(synthesizeKeying('PARIS', { wpm: 33 }), { errorGapUnits })).toMatchObject({ ok: true, unitMs: 40 })
+    expect(calibrate(synthesizeKeying('PARIS', { wpm: 75 }), { errorGapUnits })).toMatchObject({ ok: true, unitMs: 20 })
+    expect(calibrate(synthesizeKeying('PARIS', { wpm: 45 }), { errorGapUnits }).unitMs).toBeCloseTo(26.7, 0)
     expect(calibrate(synthesizeKeying('PARIS', { wpm: 2.5 }), { errorGapUnits })).toMatchObject({ ok: true, unitMs: 400 })
   })
 

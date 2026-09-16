@@ -1,5 +1,5 @@
-import { AnimatePresence, motion } from 'framer-motion'
-import { memo, useLayoutEffect, useRef } from 'react'
+import { AnimatePresence, LazyMotion, domMin, m } from 'framer-motion'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DOT } from '../morse/symbols.js'
 import { rowMoves } from './stripLayout.js'
 
@@ -40,40 +40,61 @@ export default memo(function TransmissionStrip({ strip, lite = false }) {
         <span>{hint}</span>
       </div>
       {/* Grows to fill when short; overflows off the left edge when long, keeping the newest visible. */}
-      {lite ? (
-        <LiteMarks visible={visible} />
-      ) : (
-        <div className="mt-2.5 flex justify-end overflow-hidden">
-          <div className="flex min-h-[34px] flex-[1_0_auto] items-center gap-[7px]">
-            <AnimatePresence initial={false} mode="popLayout">
-              {visible.flatMap(mark => [
-                <motion.span
-                  key={`mark-${mark.id}`}
-                  layout="position"
-                  {...pop}
-                  transition={{ ...pop.transition, layout: settle }}
-                  className={`block h-[15px] flex-none rounded-full ${mark.symbol === DOT ? 'w-[15px] bg-primary' : 'w-10 bg-secondary'}`}
-                />,
-                mark.endsLetter && (
-                  <motion.span
-                    key={`letter-${mark.id}`}
-                    layout="position"
-                    initial={{ opacity: 0, scaleY: 0.3 }}
-                    animate={{ opacity: 1, scaleY: 1 }}
-                    exit={{ opacity: 0, scaleY: 0.3 }}
-                    transition={{ duration: 0.18, layout: settle }}
-                    className="block h-[22px] w-[2px] flex-none rounded-[2px] bg-edge"
-                  />
-                ),
-              ])}
-            </AnimatePresence>
-            <motion.span layout="position" transition={{ layout: settle }} className="block h-[22px] w-[3px] flex-none rounded-[2px] bg-ink motion-safe:animate-caret" />
-          </div>
-        </div>
-      )}
+      {lite ? <LiteMarks visible={visible} /> : <MotionMarks visible={visible} />}
     </section>
   )
 })
+
+const loadLayoutFeatures = () => import('../lib/motionLayout.js').then(module => module.default)
+
+// The desktop strip: marks pop in, and glide to make room with framer-motion's
+// layout animations. Those live in their own chunk; until it arrives the marks
+// still pop in and out, and the first render after it loads attaches the glide.
+function MotionMarks({ visible }) {
+  const [features, setFeatures] = useState(null)
+
+  useEffect(() => {
+    let cancelled = false
+    loadLayoutFeatures().then(loaded => {
+      if (!cancelled) setFeatures(loaded)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return (
+    <LazyMotion features={features ?? domMin}>
+      <div className="mt-2.5 flex justify-end overflow-hidden">
+        <div className="flex min-h-[34px] flex-[1_0_auto] items-center gap-[7px]">
+          <AnimatePresence initial={false} mode="popLayout">
+            {visible.flatMap(mark => [
+              <m.span
+                key={`mark-${mark.id}`}
+                layout="position"
+                {...pop}
+                transition={{ ...pop.transition, layout: settle }}
+                className={`block h-[15px] flex-none rounded-full ${mark.symbol === DOT ? 'w-[15px] bg-primary' : 'w-10 bg-secondary'}`}
+              />,
+              mark.endsLetter && (
+                <m.span
+                  key={`letter-${mark.id}`}
+                  layout="position"
+                  initial={{ opacity: 0, scaleY: 0.3 }}
+                  animate={{ opacity: 1, scaleY: 1 }}
+                  exit={{ opacity: 0, scaleY: 0.3 }}
+                  transition={{ duration: 0.18, layout: settle }}
+                  className="block h-[22px] w-[2px] flex-none rounded-[2px] bg-edge"
+                />
+              ),
+            ])}
+          </AnimatePresence>
+          <m.span layout="position" transition={{ layout: settle }} className="block h-[22px] w-[3px] flex-none rounded-[2px] bg-ink motion-safe:animate-caret" />
+        </div>
+      </div>
+    </LazyMotion>
+  )
+}
 
 const GLIDE = { duration: 260, easing: 'cubic-bezier(.22,1,.36,1)' }
 

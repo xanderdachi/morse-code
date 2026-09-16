@@ -40,6 +40,7 @@ import { codeUnits } from './units.js'
  *   scrubs         [{ markIds, letter }] for each error prosign, with the letter it took back
  *   scrubbedLetters how many letters prosigns took back
  *   prosignHeard   an error prosign ended within the last CONFIG.prosignAckMs (live runs)
+ *   tookBack       the symbols ('' for none) the latest undo removed, within CONFIG.undoAckMs of it; else null
  *   complete       every letter of the target has been sent
  *   finalized      the run is over and its result is fixed
  *   finalizeAt     when silence alone will end this live run (or null)
@@ -57,7 +58,7 @@ export function interpret(
   log,
   { target = '', errorGapUnits, anchored = true, unitMs = CONFIG.defaultUnitMs, now = null, final = false, config = CONFIG } = {},
 ) {
-  const { marks, steps, anomalies, keyDownAt, padDownAt, lastEnd, finished } = readLog(log, config)
+  const { marks, steps, anomalies, keyDownAt, padDownAt, lastEnd, finished } = readLog(log, config, unitMs)
   const isFinal = final || finished
 
   const rhythm = analyzeRhythm(marks, { seedUnitMs: unitMs, lookahead: isFinal, config })
@@ -97,9 +98,13 @@ export function interpret(
   }
   for (const id of result.pendingIds) strip.push({ id, symbol: marks[id].symbol, endsLetter: false })
 
-  // How far through the target the run has got. Unanchored, a letter still open
-  // counts: by the time the settle silence has passed, it has closed.
-  const position = anchored ? result.cursor : result.letters.length + (result.pendingIds.length > 0 ? 1 : 0)
+  // How far through the target the run has got. Anchored, that is the cursor.
+  // Unanchored, it is how much of the passage the letters line up with, so extra
+  // letters can't make a run look finished while the operator is still keying.
+  // A letter still open counts: by the time the settle silence has passed, it has closed.
+  const position = anchored
+    ? result.cursor
+    : reachedIn(compareTarget, result.letters.map(letter => letter.char), result.pendingIds.length > 0)
   const remaining = Math.max(0, compareTarget.length - position)
 
   // The acknowledgement for an error prosign lasts a moment after its last dot.
@@ -107,9 +112,18 @@ export function interpret(
   const prosignEnd = lastProsign ? Math.max(...lastProsign.markIds.map(id => marks[id].end)) : null
   const prosignHeard = !isFinal && now !== null && prosignEnd !== null && now < prosignEnd + config.prosignAckMs
 
+  // Each undo shows, for a moment, what it removed.
+  const lastUndo = result.undos.at(-1)
+  const undoShowing = !isFinal && now !== null && lastUndo !== undefined && now < lastUndo.t + config.undoAckMs
+  const tookBack = undoShowing ? lastUndo.markIds.map(id => marks[id].symbol).join('') : null
+
   const startedAt = marks[0]?.start ?? null
   let dashFormed = false
-  const deadlines = [result.nextCheckAt, prosignHeard ? prosignEnd + config.prosignAckMs : null]
+  const deadlines = [
+    result.nextCheckAt,
+    prosignHeard ? prosignEnd + config.prosignAckMs : null,
+    undoShowing ? lastUndo.t + config.undoAckMs : null,
+  ]
   let finalizeAt = null
   let finalizeReason = null
   if (!isFinal) {
@@ -127,7 +141,10 @@ export function interpret(
         finalizeAt = lastEnd + settleGapMs(currentUnitMs, config)
         finalizeReason = 'settle'
       } else {
-        const pauseLimit = remaining <= 1 ? config.finishPauseAtEndMs : config.finishPauseMidMs
+        // At the last letter, or with as many letters sent as the passage has (unanchored, the
+        // alignment may still say a few are missing): the shorter pause ends it.
+        const atEnd = remaining <= 1 || result.letters.length >= compareTarget.length
+        const pauseLimit = atEnd ? config.finishPauseAtEndMs : config.finishPauseMidMs
         finalizeAt = lastEnd + pauseAfterMs + pauseLimit
         finalizeReason = 'pause'
       }
@@ -146,6 +163,7 @@ export function interpret(
     scrubs: result.scrubs,
     scrubbedLetters: result.scrubs.filter(scrub => scrub.letter !== null).length,
     prosignHeard,
+    tookBack,
     complete: result.complete,
     finalized: isFinal,
     finalizeAt,
@@ -308,9 +326,63 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
   return keyer
 }
 
+/**
+ * How many letters of `target` the letters sent so far best line up with: the
+ * prefix length with the least edit distance to them. A letter still open
+ * matches whatever comes next. On a tie (were the last letters wrong, or extra
+ * with more still to come?) the shorter prefix wins: a run must never end while
+ * the operator is still keying, and Finish or the pause rule end it otherwise.
+ */
+export function reachedIn(target, sent, open = false) {
+  const n = sent.length + (open ? 1 : 0)
+  if (target.length === 0) return n
+  // previous[j]: distance between the letters so far and target[0..j).
+  let previous = Array.from({ length: target.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= n; i++) {
+    const letter = i <= sent.length ? sent[i - 1] : null
+    const row = [i]
+    for (let j = 1; j <= target.length; j++) {
+      const substitution = previous[j - 1] + (letter === null || letter === target[j - 1] ? 0 : 1)
+      row.push(Math.min(substitution, previous[j] + 1, row[j - 1] + 1))
+    }
+    previous = row
+  }
+  let best = 0
+  for (let j = 1; j <= target.length; j++) {
+    if (previous[j] < previous[best]) best = j
+  }
+  return best
+}
+
+/**
+ * The shortest press that isn't contact bounce, for this log: bounceUnits of the operator's dot, held within
+ * [bounceFloorMs, minPressMs]. The dot comes from the run's own straight-key presses once there are enough of them
+ * (their 10th percentile: dots jittered short, not the odd bounce), and from the seed unit until then.
+ */
+export function bounceThresholdMs(log, seedUnitMs = CONFIG.defaultUnitMs, config = CONFIG) {
+  const durations = []
+  let downAt = null
+  for (const event of log) {
+    if (event.type === 'finish') break
+    if (event.pad !== undefined) continue
+    if (event.type === 'down') downAt ??= event.t
+    else if (event.type === 'up' && downAt !== null) {
+      if (event.t - downAt >= config.bounceFloorMs) durations.push(event.t - downAt)
+      downAt = null
+    }
+  }
+  let dotMs = seedUnitMs
+  if (durations.length >= config.bounceReferencePresses) {
+    durations.sort((a, b) => a - b)
+    dotMs = durations[Math.floor(durations.length / 10)]
+  }
+  return Math.min(config.minPressMs, Math.max(config.bounceFloorMs, config.bounceUnits * dotMs))
+}
+
 // Pair downs with ups into marks, dropping repeats, stray ups and bounces.
 // Reading stops at a 'finish' event.
-function readLog(log, config) {
+function readLog(log, config, seedUnitMs) {
+  const bounceMs = bounceThresholdMs(log, seedUnitMs, config)
   const marks = []
   const steps = []
   const anomalies = []
@@ -326,7 +398,7 @@ function readLog(log, config) {
       break
     }
     if (event.type === 'letter' || event.type === 'undo') {
-      steps.push({ type: event.type === 'letter' ? 'boundary' : 'undo' })
+      steps.push({ type: event.type === 'letter' ? 'boundary' : 'undo', t: event.t })
       rhythmBreak = true
       continue
     }
@@ -346,7 +418,7 @@ function readLog(log, config) {
     else padDownAt.delete(pad)
 
     const durationMs = event.t - start
-    if (durationMs < config.minPressMs) {
+    if (durationMs < bounceMs) {
       anomalies.push({ type: 'bounce', t: start, durationMs })
       continue
     }

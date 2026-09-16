@@ -76,7 +76,7 @@ function Intro({ titleId, onClose, touch, mode, unitMs = null, errorGapUnits, ke
   }
 
   const kind = STEPS[step]
-  const keyName = mode === 'key' ? 'key' : 'pad'
+  const keyName = mode === 'key' ? 'key' : keyerMode === 'iambic' ? 'iambic' : 'pad'
 
   return (
     <div className="flex flex-col gap-[18px]">
@@ -123,6 +123,7 @@ function Intro({ titleId, onClose, touch, mode, unitMs = null, errorGapUnits, ke
                 padsDown={input.padsDown}
                 keyProps={input.keyProps}
                 padProps={input.padProps}
+                pulses={keyName === 'iambic' ? input.pulses : null}
               />
             ) : (
               <KeyboardKeys mode={mode} input={input} />
@@ -179,21 +180,26 @@ const KEYING_LINES = {
   touch: {
     key: 'Hold the round key at the bottom of your screen: a quick press makes a dot, a longer one a dash.',
     pad: 'Tap the keys at the bottom of your screen, dot on the left and dash on the right.',
+    // The iambic keyer times each element itself: an operator who holds for every element sends repeats.
+    iambic: 'Tap the dot key on the left or the dash key on the right once for each element. Hold a key only to repeat it.',
   },
   keyboard: {
     key: 'Your spacebar is the telegraph key: a quick press makes a dot, a longer one a dash.',
     pad: 'Press the full stop for a dot and the hyphen for a dash.',
+    iambic: 'Tap the full stop once for each dot and the hyphen once for each dash. Hold a key only to repeat it.',
   },
 }
 
 const TRY_LINES = {
   key: 'Your turn: send me an E, which is one quick press.',
   pad: 'Your turn: send me an E, which is a single dot.',
+  iambic: 'Your turn: send me an E, which is one tap on the dot key.',
 }
 
 const MISSED_LINES = {
   key: 'Not quite, so try again: an E is just one quick press.',
   pad: 'Not quite, so try again: an E is just a single dot.',
+  iambic: 'Not quite, so try again: an E is one tap on the dot key, let go straight away.',
 }
 
 // Keycaps for the keyboard. Given `input`, they press down with the real keys

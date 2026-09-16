@@ -190,24 +190,27 @@ describe('anchored: mistakes stay mistakes', () => {
     expect(run.text).toBe('EEA')
   })
 
-  it('resyncs within three letters after an omitted letter and grades ~99%', () => {
+  // Letter 40 of what was sent is the one after the gap, decoded on the error path; three exact
+  // matches in a row (41 to 43) then settle it.
+  it('resyncs within four letters after an omitted letter and grades ~99%', () => {
     const sent = editLetters(LONG, [{ at: 40, op: 'delete' }])
     for (const wpm of [12, 25]) {
       const log = synthesizeKeying(sent, { wpm })
       const run = finish(LONG, log)
       expect(run.text).toBe(lettersOf(sent))
       expect(scoreOf(LONG, run).accuracy).toBeGreaterThanOrEqual(98.5)
-      expect(stateAfterLetter(LONG, log, sent, 42).beamWidth).toBe(1)
+      expect(stateAfterLetter(LONG, log, sent, 43).beamWidth).toBe(1)
     }
   })
 
-  it('resyncs within three letters after an extra letter and grades ~99%', () => {
+  it('resyncs within three letters after an extra letter, which costs one letter of accuracy', () => {
     const sent = editLetters(LONG, [{ at: 40, op: 'insert', char: 'Q' }])
+    const length = lettersOf(LONG).length
     for (const wpm of [12, 25]) {
       const log = synthesizeKeying(sent, { wpm })
       const run = finish(LONG, log)
       expect(run.text).toBe(lettersOf(sent))
-      expect(scoreOf(LONG, run).accuracy).toBeGreaterThanOrEqual(99)
+      expect(scoreOf(LONG, run).accuracy).toBeCloseTo((100 * length) / (length + 1), 10)
       expect(stateAfterLetter(LONG, log, sent, 43).beamWidth).toBe(1)
     }
   })

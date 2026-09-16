@@ -22,7 +22,9 @@ import { WORD_SPACE_UNITS, characterUnits, textUnits, wordsPerMinute } from './u
  *                the operator took back where the tier makes that cost)
  *
  * Returns:
- *   accuracy      matches ÷ compareTarget length × 100, in [0, 100]
+ *   accuracy      matches ÷ (compareTarget length + insertions) × 100, in [0, 100]:
+ *                 a letter sent that the passage doesn't have costs as much as one it
+ *                 has that didn't arrive, so extra letters can never pad a score
  *   wpm           PARIS words per minute of what was keyed, crediting the
  *                 passage's word spaces up to where the sending reached
  *   effectiveWpm  the same, counting only letters that came through correctly
@@ -46,7 +48,7 @@ export function grade({ target, sent, elapsedMs = 0, letterUnits, extraDeletions
       ? received.length === 0
         ? 100
         : 0
-      : Math.min(100, Math.max(0, (100 * (counts.match - penalty)) / compareTarget.length))
+      : Math.min(100, Math.max(0, (100 * (counts.match - penalty)) / (compareTarget.length + counts.insert)))
 
   // Word breaks: which target letters start a new word, and how many spaces the sending passed.
   const startsWord = []

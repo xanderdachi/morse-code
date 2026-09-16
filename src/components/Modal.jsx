@@ -1,4 +1,4 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, LazyMotion, domMin, m } from 'framer-motion'
 import { useEffect, useEffectEvent, useRef } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -7,13 +7,16 @@ const FOCUSABLE = 'a[href], button:not(:disabled), input:not(:disabled), select:
 /** Shared shell for every dialog: backdrop, card, close button, focus and Escape handling. */
 export default function Modal({ open, onClose, width = 600, labelledBy, children }) {
   return createPortal(
-    <AnimatePresence>
-      {open && (
-        <ModalFrame key="modal" onClose={onClose} width={width} labelledBy={labelledBy}>
-          {children}
-        </ModalFrame>
-      )}
-    </AnimatePresence>,
+    // domMin: fades and exits only, so the modal doesn't carry layout and drag.
+    <LazyMotion features={domMin}>
+      <AnimatePresence>
+        {open && (
+          <ModalFrame key="modal" onClose={onClose} width={width} labelledBy={labelledBy}>
+            {children}
+          </ModalFrame>
+        )}
+      </AnimatePresence>
+    </LazyMotion>,
     document.body,
   )
 }
@@ -56,14 +59,14 @@ function ModalFrame({ onClose, width, labelledBy, children }) {
   }
 
   return (
-    <motion.div
+    <m.div
       className="fixed inset-0 z-60 flex items-start justify-center overflow-auto bg-scrim px-4 py-[34px] backdrop-blur-[7px]"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0, transition: { duration: 0.18, delay: 0.04 } }}
       transition={{ duration: 0.2 }}
     >
-      <motion.div
+      <m.div
         ref={cardRef}
         role="dialog"
         aria-modal="true"
@@ -86,7 +89,7 @@ function ModalFrame({ onClose, width, labelledBy, children }) {
           ×
         </button>
         {children}
-      </motion.div>
-    </motion.div>
+      </m.div>
+    </m.div>
   )
 }

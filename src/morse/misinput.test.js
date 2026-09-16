@@ -5,7 +5,7 @@ import { grade } from './grade.js'
 import { createKeyer, interpret } from './keyer.js'
 import { synthesizeKeying } from './testing/syntheticKeyer.js'
 import { ERROR_PROSIGN, LONGEST_LETTER, isCodePrefix } from './trie.js'
-import { settleGapMs } from './timing.js'
+import { CONFIG, settleGapMs } from './timing.js'
 import { unitMsForWpm } from './units.js'
 
 const { errorGapUnits } = leniencyFor(1)
@@ -26,6 +26,17 @@ function statesAfterEachRelease(log, options) {
 function pendingMarks(state) {
   const lastEnd = state.strip.findLastIndex(mark => mark.endsLetter)
   return state.strip.length - 1 - lastEnd
+}
+
+// When silence alone ends a run whose last letter is garbled. Anchored, the cursor knows the passage
+// is done: the settle period. Unanchored, a garbled last letter could as well be an extra one with
+// more to come, so the run waits for the pause rule (or the Finish control) rather than risk
+// ending while the operator is still keying.
+function endOfSilence(keyer, lastUp, anchored) {
+  if (anchored) return lastUp + settleGapMs(U)
+  const state = keyer.state(lastUp)
+  expect(state.remaining).toBe(1)
+  return lastUp + state.pauseAfterMs + CONFIG.finishPauseAtEndMs
 }
 
 function feed(keyer, log) {
@@ -65,13 +76,14 @@ describe('bug A: a buffer that can no longer be a letter commits at once', () =>
       for (const state of states) expect(pendingMarks(state)).toBeLessThanOrEqual(LONGEST_LETTER)
     })
 
-    it(`does not stall: nine dashes as the last letter still settle and finalize (${anchored ? 'anchored' : 'unanchored'})`, () => {
+    it(`does not stall: nine dashes as the last letter still finalize on silence (${anchored ? 'anchored' : 'unanchored'})`, () => {
       const keyer = createKeyer({ errorGapUnits, target: 'TE', unitMs: U, anchored })
       const log = synthesizeKeying('TX', { wpm: WPM, codeFor: (char, i) => (i === 1 ? '-'.repeat(9) : toMorse(char)) })
       feed(keyer, log)
       const lastUp = log.at(-1).t
-      expect(keyer.tick(lastUp + settleGapMs(U) + 1)).toBe(true)
-      expect(keyer.state(lastUp + settleGapMs(U) + 1)).toMatchObject({ text: 'T#', finishReason: 'settle' })
+      const endsAt = endOfSilence(keyer, lastUp, anchored)
+      expect(keyer.tick(endsAt)).toBe(true)
+      expect(keyer.state(endsAt)).toMatchObject({ text: 'T#', finishReason: anchored ? 'settle' : 'pause' })
     })
   }
 
@@ -211,14 +223,51 @@ describe('the screenshot case', () => {
       const during = keyer.state(lastUp)
       expect(during.lettersSent).toBeLessThanOrEqual(lettersOf(target).length)
 
-      const settleAt = lastUp + settleGapMs(U)
-      expect(keyer.tick(settleAt - 1)).toBe(false)
-      expect(keyer.tick(settleAt)).toBe(true)
-      const run = keyer.state(settleAt)
-      expect(run.finishReason).toBe('settle')
+      const endsAt = endOfSilence(keyer, lastUp, anchored)
+      expect(keyer.tick(endsAt - 1)).toBe(false)
+      expect(keyer.tick(endsAt)).toBe(true)
+      const run = keyer.state(endsAt)
+      expect(run.finishReason).toBe(anchored ? 'settle' : 'pause')
       expect(run.text).toBe(`${lettersOf(target).slice(0, -1)}#`)
       const { counts } = grade({ target, sent: run.text, elapsedMs: run.elapsedMs, letterUnits: run.letterUnits })
       expect(counts).toEqual({ match: last, substitute: 1, insert: 0, delete: 0 })
     })
   }
+})
+
+describe('undo shows what it removed', () => {
+  const tap = (keyer, pad, t) => {
+    keyer.padDown(pad, t)
+    keyer.padUp(pad, t + 60)
+  }
+
+  it('reports the marks each undo took back, for a moment, including when there was nothing to take', () => {
+    const keyer = createKeyer({ errorGapUnits, target: 'AHE', unitMs: U })
+    tap(keyer, '.', 0)
+    tap(keyer, '-', 150) // A, committed
+    tap(keyer, '.', 600)
+    tap(keyer, '.', 750) // two dots of H, in progress
+    keyer.undo(1000)
+    expect(keyer.state(1010)).toMatchObject({ tookBack: '..', text: 'A' })
+    keyer.undo(1200)
+    expect(keyer.state(1210)).toMatchObject({ tookBack: '.-', text: '' })
+    keyer.undo(1400)
+    expect(keyer.state(1410)).toMatchObject({ tookBack: '', text: '' })
+    expect(keyer.state(1410).nextCheckAt).toBeLessThanOrEqual(1400 + CONFIG.undoAckMs)
+    expect(keyer.state(1400 + CONFIG.undoAckMs).tookBack).toBeNull()
+  })
+
+  it('mashing undo removes committed letters one per press, each shown', () => {
+    const keyer = createKeyer({ errorGapUnits, target: 'TEA', unitMs: U })
+    tap(keyer, '-', 0)
+    tap(keyer, '.', 300)
+    tap(keyer, '.', 600)
+    tap(keyer, '-', 750)
+    const shown = []
+    for (let i = 0; i < 4; i++) {
+      keyer.undo(2000 + i * 100)
+      shown.push(keyer.state(2000 + i * 100 + 5).tookBack)
+    }
+    expect(shown).toEqual(['.-', '.', '-', ''])
+  })
 })

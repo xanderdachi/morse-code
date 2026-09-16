@@ -45,38 +45,41 @@ export default function SettingsModal({
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-soft">Pad keyer</span>
-          <Choice
-            label="Pad keyer"
-            value={keyerMode}
-            onChange={onKeyerModeChange}
-            options={[
-              ['manual', 'Manual'],
-              ['iambic', 'Iambic'],
-            ]}
-          />
-          <p className="text-[13px] font-medium leading-[1.5] text-ink-soft">
-            {keyerMode === 'iambic'
-              ? 'Hold a pad and the keyer sends perfectly timed dots or dashes; hold both and it alternates. Iambic runs are ranked on their own.'
-              : 'Each tap on the dot or dash pad sends one element.'}
-          </p>
-          {keyerMode === 'iambic' && (
-            <label className="flex items-center gap-3.5 rounded-box bg-paper-2 px-4 py-3">
-              <span className="text-[13.5px] font-bold text-ink-soft">Speed</span>
-              <input
-                type="range"
-                min={KEYER_WPM.min}
-                max={KEYER_WPM.max}
-                step={1}
-                value={keyerWpm}
-                onChange={event => onKeyerWpmChange(Number(event.target.value))}
-                className="min-w-0 flex-1 accent-primary"
-              />
-              <span className="w-[62px] text-right text-[15px] font-extrabold tabular-nums">{keyerWpm} wpm</span>
-            </label>
-          )}
-        </div>
+        {/* The keyer belongs to the pad; the straight key always reads real presses. */}
+        {mode === 'pad' && (
+          <div className="flex flex-col gap-2">
+            <span className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-soft">Pad keyer</span>
+            <Choice
+              label="Pad keyer"
+              value={keyerMode}
+              onChange={onKeyerModeChange}
+              options={[
+                ['manual', 'Manual'],
+                ['iambic', 'Iambic'],
+              ]}
+            />
+            <p className="text-[13px] font-medium leading-[1.5] text-ink-soft">
+              {keyerMode === 'iambic'
+                ? 'Tap once for each dot or dash, and the keyer times it perfectly. Hold a pad only to repeat it: every element period it stays down sends another. Hold both to alternate. Iambic runs are ranked on their own.'
+                : 'Each tap on the dot or dash pad sends one element.'}
+            </p>
+            {keyerMode === 'iambic' && (
+              <label className="flex items-center gap-3.5 rounded-box bg-paper-2 px-4 py-3">
+                <span className="text-[13.5px] font-bold text-ink-soft">Speed</span>
+                <input
+                  type="range"
+                  min={KEYER_WPM.min}
+                  max={KEYER_WPM.max}
+                  step={1}
+                  value={keyerWpm}
+                  onChange={event => onKeyerWpmChange(Number(event.target.value))}
+                  className="min-w-0 flex-1 accent-primary"
+                />
+                <span className="w-[62px] text-right text-[15px] font-extrabold tabular-nums">{keyerWpm} wpm</span>
+              </label>
+            )}
+          </div>
+        )}
 
         <div className="flex flex-col gap-2">
           <span className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-soft">Touch controls</span>

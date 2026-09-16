@@ -92,7 +92,7 @@ export function segmentLetters(
     if (!silent && !decided && silenceMs !== null && !holding && lastEnd !== null) nextCheckAt = lastEnd + limit
   }
 
-  return { letters, pendingIds, complete, nextCheckAt, scrubs }
+  return { letters, pendingIds, complete, nextCheckAt, scrubs, undos: [] }
 }
 
 /**

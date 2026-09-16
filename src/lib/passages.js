@@ -82,7 +82,7 @@ export function assembleBoard(storedIds, found, replacements) {
 async function query(what, build) {
   if (globalThis.navigator?.onLine === false) return null
   try {
-    // Loaded on demand so the game (and its bundled passages) never waits on supabase-js.
+    // Loaded on demand so the game (and its bundled passages) never waits on the client.
     const { supabase } = await import('./supabase.js')
     if (!supabase) return null
 
