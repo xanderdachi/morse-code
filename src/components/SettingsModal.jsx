@@ -1,4 +1,5 @@
 import { useId } from 'react'
+import { IAMBIC_ENABLED } from '../lib/features.js'
 import { KEYER_WPM, UNANCHORED_FROM_TIER } from '../lib/progress.js'
 import { CONFIG } from '../morse/timing.js'
 import { wpmForUnitMs } from '../morse/units.js'
@@ -45,8 +46,10 @@ export default function SettingsModal({
           </div>
         </div>
 
-        {/* The keyer belongs to the pad; the straight key always reads real presses. */}
-        {mode === 'pad' && (
+        {/* The keyer belongs to the pad; the straight key always reads real presses. The whole
+            section goes while IAMBIC_ENABLED is false: with one mode left there is no choice to
+            offer, and a lone disabled control only raises the question of what it would have done. */}
+        {IAMBIC_ENABLED && mode === 'pad' && (
           <div className="flex flex-col gap-2">
             <span className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-soft">Pad keyer</span>
             <Choice

@@ -41,8 +41,15 @@ paddle and the keyer generates elements at a fixed speed — dots while you hold
 paddle, dashes while you hold the dash paddle, and alternating dots and dashes while you
 hold both. This is how most modern operators actually key. The speed is chosen in settings
 rather than earned from your own hand, which is why iambic runs are scored in their own
-division and never ranked against hand-timed ones. It is off by default; see *Testing* for
-why.
+division and never ranked against hand-timed ones.
+
+**The iambic keyer is written and tested, and is not enabled for launch.** It runs away under
+CPU load — see *Testing* for the numbers — so it sits behind `IAMBIC_ENABLED` in
+`src/lib/features.js`, currently `false`. While that flag is off there is no keyer control in
+settings at all, and anyone who had the mode selected before the flag flipped is moved back to
+the manual pad when their progress loads, with their chosen speed kept for when it returns.
+Nothing is deleted: the keyer, its tests and the pad's element pulse are all still in the tree,
+and turning the flag on restores the controls.
 
 ### Anchored decoding
 
@@ -360,12 +367,22 @@ zero drops.** That measurement comes from `scripts/measure/browser-pipeline.mjs`
 drives a real production build in headless Chrome over CDP and compares every event it
 dispatched against what the engine actually recorded. Those two modes can be trusted.
 
-**The iambic keyer has a known runaway under CPU throttling** — under simulated load it can
-emit a burst of extra elements that it does not recover from, which in a run means a cascade
-of wrong letters with no way back. It is **off by default** for that reason. `npm run build`
-plus `node scripts/measure/browser-pipeline.mjs run --iambic-load` reproduces it; the check
-fails a run that sends five or more extra elements. This is a real open bug, not a caveat.
-The straight key and manual pad do not share the code path.
+**The iambic keyer has a known runaway under CPU throttling, and is not enabled for launch.**
+At 35 WPM with 4x throttling it sent **3,682 extra elements, with lag reaching 42 seconds** — a
+burst it never recovers from, which in a run means a cascade of wrong letters the operator
+cannot key their way out of. A mid-range phone under load reaches this, so the keyer ships off
+rather than late: `IAMBIC_ENABLED` in `src/lib/features.js` is `false`, and that flag is the
+only thing standing between the code and the player.
+
+`npm run build` plus `node scripts/measure/browser-pipeline.mjs run --iambic-load` reproduces
+it, sweeping 15 / 25 / 35 WPM against 1x, 4x and 6x throttling and failing any run that sends
+five or more extra elements. That sweep must pass at every speed and throttle — not just at 1x
+— before the flag goes back to `true`. This is a real open bug, not a caveat.
+
+The straight key and the manual pad do not share the code path, which is why they are
+unaffected and why the flag is enough. The keyer's own unit tests still run on every `npm test`;
+the tests that drive its settings controls skip themselves while the flag is false and come
+back the moment it is true, so the feature cannot rot while it is parked.
 
 `scripts/measure/real-device-test.md` is a manual checklist for one Android phone and one
 iPhone, covering the things no headless browser can tell you: whether the sidetone survives

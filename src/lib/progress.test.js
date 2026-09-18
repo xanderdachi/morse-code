@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { IAMBIC_ENABLED } from './features.js'
 
 // progress.js keeps an in-memory copy at module level, so each test gets a fresh module.
 let progressModule
@@ -564,14 +565,39 @@ describe('iambic keyer settings', () => {
     expect(usesIambic({ ...defaultProgress(), inputMode: 'pad' })).toBe(false)
   })
 
-  it('persists the mode and a speed clamped to 5–40 WPM', () => {
+  it('clamps a stored speed to 5–40 WPM and ignores a mode it does not know', () => {
+    const { defaultProgress, setKeyerMode, setKeyerWpm } = progressModule
+    expect(setKeyerWpm(defaultProgress(), 2).keyerWpm).toBe(5)
+    expect(setKeyerWpm(defaultProgress(), 90).keyerWpm).toBe(40)
+    expect(setKeyerMode(defaultProgress(), 'bug').keyerMode).toBe('manual')
+  })
+
+  // What persisting the mode does depends on the launch flag, so each state gets its own test.
+  it.skipIf(!IAMBIC_ENABLED)('persists the iambic mode and its speed while the keyer is enabled', () => {
     vi.stubGlobal('localStorage', new MemoryStorage())
     const { defaultProgress, setKeyerMode, setKeyerWpm, saveProgress, loadProgress, usesIambic } = progressModule
     saveProgress(setKeyerWpm(setKeyerMode({ ...defaultProgress(), inputMode: 'pad' }, 'iambic'), 27.4))
     expect(loadProgress()).toMatchObject({ keyerMode: 'iambic', keyerWpm: 27 })
     expect(usesIambic(loadProgress())).toBe(true)
-    expect(setKeyerWpm(defaultProgress(), 2).keyerWpm).toBe(5)
-    expect(setKeyerWpm(defaultProgress(), 90).keyerWpm).toBe(40)
-    expect(setKeyerMode(defaultProgress(), 'bug').keyerMode).toBe('manual')
+  })
+
+  it.skipIf(IAMBIC_ENABLED)('migrates a stored iambic mode to manual, keeping the speed for when it returns', () => {
+    vi.stubGlobal('localStorage', new MemoryStorage())
+    const { STORAGE_KEY, loadProgress, usesIambic } = progressModule
+    // Written by a build where the keyer was still on offer: the player is mid-mode when the flag flips.
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 27 }))
+
+    const loaded = loadProgress()
+    expect(loaded.keyerMode).toBe('manual')
+    expect(loaded.keyerWpm).toBe(27) // not lost: turning the keyer back on restores the choice
+    expect(usesIambic(loaded)).toBe(false)
+  })
+
+  it.skipIf(IAMBIC_ENABLED)('writes the migration back, so the stranded mode does not survive a save', () => {
+    vi.stubGlobal('localStorage', new MemoryStorage())
+    const { STORAGE_KEY, defaultProgress, setKeyerMode, saveProgress } = progressModule
+    // Even handed 'iambic' directly, nothing persists a mode the player cannot leave.
+    saveProgress(setKeyerMode({ ...defaultProgress(), inputMode: 'pad', keyerWpm: 31 }, 'iambic'))
+    expect(JSON.parse(globalThis.localStorage.getItem(STORAGE_KEY))).toMatchObject({ keyerMode: 'manual', keyerWpm: 31 })
   })
 })

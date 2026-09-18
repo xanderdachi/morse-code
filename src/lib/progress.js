@@ -11,7 +11,8 @@
 // sidetone is null to follow the device (on with touch controls), or the player's choice.
 // onboardingSeen is set once the first-visit intro has been closed, however it was closed.
 // keyerMode is how the dot/dash pad keys: 'manual' (each tap is an element) or
-// 'iambic' (held paddles generate elements at keyerWpm).
+// 'iambic' (held paddles generate elements at keyerWpm). While IAMBIC_ENABLED is
+// false, a stored 'iambic' is migrated to 'manual' on load and keyerWpm is kept.
 //
 // localStorage can throw (Safari private browsing, blocked site data), so every
 // call is guarded and the latest saved state is also kept in memory: if storage
@@ -20,6 +21,7 @@
 // object keys aren't.
 
 import { CONFIG } from '../morse/timing.js'
+import { IAMBIC_ENABLED } from './features.js'
 
 export const STORAGE_KEY = 'morse-club-v1'
 export const CLEAR_ACCURACY = 80 // percent, as shown in results
@@ -288,9 +290,23 @@ function sanitize(value) {
     sidetone: typeof input.sidetone === 'boolean' ? input.sidetone : null,
     // Progress saved before the intro existed belongs to a returning player, who never needs it.
     onboardingSeen: typeof input.onboardingSeen === 'boolean' ? input.onboardingSeen : true,
-    keyerMode: KEYER_MODES.includes(input.keyerMode) ? input.keyerMode : 'manual',
+    keyerMode: sanitizeKeyerMode(input.keyerMode),
+    // Kept whatever the mode, so the speed a player chose survives the keyer being off.
     keyerWpm: Number.isFinite(input.keyerWpm) ? clampWpm(input.keyerWpm) : KEYER_WPM.default,
   }
+}
+
+/**
+ * The stored keyer mode, migrated if it is one the build no longer offers.
+ *
+ * While IAMBIC_ENABLED is false there is no settings control for the keyer, so a
+ * player who had 'iambic' selected before the flag flipped would be stranded in it
+ * with no way back. Moving them to 'manual' on load is that way back. Their
+ * keyerWpm is untouched, so the choice returns with the keyer.
+ */
+function sanitizeKeyerMode(keyerMode) {
+  const stored = KEYER_MODES.includes(keyerMode) ? keyerMode : 'manual'
+  return stored === 'iambic' && !IAMBIC_ENABLED ? 'manual' : stored
 }
 
 function clampWpm(wpm) {

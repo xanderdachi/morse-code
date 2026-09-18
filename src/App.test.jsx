@@ -5,6 +5,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { stubCanvas } from './testing/canvas.js'
 import { fakeFrames, mockClock } from './testing/dom.js'
 import { fakeMatchMedia } from './testing/fakeMatchMedia.js'
+import { IAMBIC_ENABLED } from './lib/features.js'
 
 // No network: the board comes from the bundled passages.
 vi.mock('./lib/supabase.js', () => ({ supabase: null }))
@@ -272,7 +273,65 @@ describe('run dump (?dump)', { timeout: 20_000 }, () => {
   })
 })
 
-describe('iambic keyer settings', () => {
+// The keyer's own controls. Skipped while IAMBIC_ENABLED is false, and must pass again the moment it is true.
+// The shipping state: the keyer is written and tested, and no player can reach it.
+describe.skipIf(IAMBIC_ENABLED)('the iambic keyer is off for launch', () => {
+  const marks = () =>
+    [...document.querySelectorAll('section[aria-label=Transmission] span.rounded-full')].filter(
+      node => !String(node.className).includes('animate-caret'),
+    )
+
+  it('offers no keyer controls in settings, on the pad where they would otherwise be', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad' })
+    await loadApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+
+    // Gone, not disabled: a greyed-out control only raises the question of what it would have done.
+    expect(screen.queryByRole('group', { name: 'Pad keyer' })).toBeNull()
+    expect(screen.queryByRole('slider')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Iambic' })).toBeNull()
+    // Nor is the mode named anywhere in the settings copy.
+    expect(screen.getByRole('dialog').textContent).not.toMatch(/iambic/i)
+  })
+
+  it('moves a player stored in iambic back to the manual pad, keeping their speed', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 31, touchControls: 'off' })
+    await loadApp()
+
+    // No readout, and the speed tile measures the operator again instead of reporting a chosen speed.
+    expect(screen.queryByText(/Iambic keyer ·/)).toBeNull()
+    expect(screen.getByText('Pace')).toBeTruthy()
+    expect(screen.queryByText('Keyer')).toBeNull()
+
+    // And the pad really is manual: one press is one element however long it is held,
+    // where the keyer would have repeated it for as long as the pad stayed down.
+    const clock = mockClock(50_000)
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    clock.fire(window, 'keydown', { key: '.', code: 'Period' }, clock.now + 50)
+    clock.run(480)
+    clock.fire(window, 'keyup', { key: '.', code: 'Period' }, clock.now)
+    clock.run(200)
+    expect(marks()).toHaveLength(1)
+  })
+
+  it('does not leave iambic in storage once the app has saved anything', async () => {
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 31 })
+    await loadApp()
+    fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
+    fireEvent.click(within(screen.getAllByRole('group', { name: 'Input mode' }).at(-1)).getByRole('button', { name: 'Straight key' }))
+    expect(stored()).toMatchObject({ keyerMode: 'manual', keyerWpm: 31 })
+  })
+
+  it('never names the keyer in the first-visit intro', async () => {
+    // onboardingSeen is explicit: sanitize() treats progress without it as a returning player's.
+    seed({ onboardingSeen: false, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20 })
+    await loadApp()
+    expect(intro()).not.toBeNull()
+    expect(intro().textContent).not.toMatch(/iambic/i)
+  })
+})
+
+describe.skipIf(!IAMBIC_ENABLED)('iambic keyer settings', () => {
   it('switches the pad to iambic, persists its speed, and shows the speed near the mode toggle', async () => {
     seed({ onboardingSeen: true, inputMode: 'pad' })
     await loadApp()
@@ -291,7 +350,7 @@ describe('iambic keyer settings', () => {
   })
 })
 
-describe('iambic is the pad only (app)', () => {
+describe.skipIf(!IAMBIC_ENABLED)('iambic is the pad only (app)', () => {
   it('hides the pad keyer settings for the straight key, and reads a straight-key run from presses with iambic persisted', async () => {
     seed({ onboardingSeen: true, inputMode: 'key', keyerMode: 'iambic', keyerWpm: 20 })
     await loadApp()
@@ -420,7 +479,7 @@ describe('straight key hint for the pad keys', () => {
   })
 })
 
-describe('iambic feedback on a desktop', () => {
+describe.skipIf(!IAMBIC_ENABLED)('iambic feedback on a desktop', () => {
   it('has the sidetone on by default, sounding while the keyer sends, and it can still be turned off', async () => {
     seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20, touchControls: 'off' })
     const { sidetone } = await import('./lib/sidetone.js')
