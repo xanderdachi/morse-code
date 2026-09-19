@@ -457,7 +457,7 @@ export default function App() {
               </p>
             )}
             {/* Last thing on the screen. With touch controls the container's --dock-room padding sits below it, so the floating keys never cover it. */}
-            <footer className="text-center text-[11.5px] font-medium tracking-[.02em] text-ink-soft">Created by: Sehel x Claude</footer>
+            <footer className="text-center text-[11.5px] font-medium tracking-[.02em] text-ink-soft">Created by Sehel x Opus</footer>
           </div>
         </div>
       </div>
