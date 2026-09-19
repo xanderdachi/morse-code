@@ -295,7 +295,7 @@ describe.skipIf(IAMBIC_ENABLED)('the iambic keyer is off for launch', () => {
   })
 
   it('moves a player stored in iambic back to the manual pad, keeping their speed', async () => {
-    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 31, touchControls: 'off' })
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 27, touchControls: 'off' })
     await loadApp()
 
     // No readout, and the speed tile measures the operator again instead of reporting a chosen speed.
@@ -315,11 +315,11 @@ describe.skipIf(IAMBIC_ENABLED)('the iambic keyer is off for launch', () => {
   })
 
   it('does not leave iambic in storage once the app has saved anything', async () => {
-    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 31 })
+    seed({ onboardingSeen: true, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 27 })
     await loadApp()
     fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
     fireEvent.click(within(screen.getAllByRole('group', { name: 'Input mode' }).at(-1)).getByRole('button', { name: 'Straight key' }))
-    expect(stored()).toMatchObject({ keyerMode: 'manual', keyerWpm: 31 })
+    expect(stored()).toMatchObject({ keyerMode: 'manual', keyerWpm: 27 })
   })
 
   it('never names the keyer in the first-visit intro', async () => {
@@ -339,14 +339,30 @@ describe.skipIf(!IAMBIC_ENABLED)('iambic keyer settings', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Setup' }))
     fireEvent.click(within(screen.getByRole('group', { name: 'Pad keyer' })).getByRole('button', { name: 'Iambic' }))
-    fireEvent.change(screen.getByRole('slider'), { target: { value: '32' } })
-    expect(stored()).toMatchObject({ keyerMode: 'iambic', keyerWpm: 32 })
+    // The slider's range is the keyer's: 5 to 30 WPM, the ceiling the runaway fix brought it down to.
+    const speed = screen.getByRole('slider')
+    expect([speed.getAttribute('min'), speed.getAttribute('max')]).toEqual(['5', '30'])
+    expect(screen.getByRole('dialog').textContent).toContain('from 5 to 30 wpm')
+    fireEvent.change(speed, { target: { value: '28' } })
+    expect(stored()).toMatchObject({ keyerMode: 'iambic', keyerWpm: 28 })
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
 
-    await waitFor(() => expect(screen.getByText('Iambic keyer · 32 wpm')).toBeTruthy())
+    await waitFor(() => expect(screen.getByText('Iambic keyer · 28 wpm')).toBeTruthy())
     // The live speed tile reports the keyer's chosen speed, not a measured one.
     expect(screen.getByText('Keyer')).toBeTruthy()
     expect(screen.queryByText('Pace')).toBeNull()
+  })
+
+  // The keyer's own line in the intro: with the mode on, the first visit must teach a tap per
+  // element, not the manual pad's "one tap is one dot".
+  it('teaches the keyer in the first-visit intro when the mode is on', async () => {
+    // onboardingSeen is explicit: sanitize() treats progress without it as a returning player's.
+    seed({ onboardingSeen: false, inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 20, touchControls: 'off' })
+    await loadApp()
+    expect(intro()).not.toBeNull()
+    fireEvent.click(within(intro()).getByRole('button', { name: 'Next' }))
+    expect(within(intro()).getByText(/Tap the full stop once for each dot and the hyphen once for each dash/)).toBeTruthy()
+    expect(within(intro()).getByText(/Hold a key only to repeat it/)).toBeTruthy()
   })
 })
 

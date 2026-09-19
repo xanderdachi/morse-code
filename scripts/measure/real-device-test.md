@@ -1,8 +1,9 @@
 # Real-device check: one Android phone, one iPhone
 
-Covers what ships. The iambic keyer is off for launch (`IAMBIC_ENABLED` in `src/lib/features.js`),
-so there is nothing here for it; if that flag is ever flipped back on, the keyer needs its own
-rows before it goes out.
+Covers what ships, the iambic keyer included (`IAMBIC_ENABLED` in `src/lib/features.js` is on).
+Rows 14 to 16 are the keyer's: they need the mode turned on in **Setup → Pad keyer → Iambic**,
+and they are the ones no headless sweep can answer, because they are about a real phone's main
+thread under real load. If the flag is ever turned back off, skip them.
 
 **Attribution — fill this in first, or the result cannot be read back later.**
 
@@ -35,6 +36,9 @@ rows before it goes out.
 | 11 | Hold the phone **one-handed as you'd actually play** and key a passage in both input modes | Both keys are reachable with the thumb without shifting grip, and the home indicator / gesture bar never sits over a key or swallows a press | | | |
 | 12 | With the keys on screen, **read the passage** during a run | The passage stays legible and the cursor stays visible above the keys: never hidden behind them, never clipped to an unreadable sliver | | | |
 | 13 | **First visit** (private window or cleared site data): work through the intro to the try-it step and **send a real E from the touch keys** | The try-it step accepts one short press on the round key (straight key) or one tap on the dot key (pad), and moves on. It must accept a genuine key press, not only the on-screen demo | | | |
+| 14 | **Iambic at 30 WPM** (the ceiling): 5 runs, one tap per element. Write each accuracy in *Observed* | Each tap sends exactly one element: no doubled dots, no letter arriving that you didn't key. The speed slider stops at 30 | | | |
+| 15 | **Iambic under load**: start a music or video app and a big download, then key an iambic run at 30 WPM | No runaway — the strip never fills with elements you didn't send. If the results card says the device fell behind, that is a **pass**: the keyer stopped instead of guessing. Note how often it appeared | | | |
+| 16 | **Hold one paddle down for 3 s** mid-run, on purpose | It sends at most 8 elements and then stops, and the results card names the hold. Nothing keeps sending after you let go | | | |
 
 **Afterwards**
 - On each phone press **Download** and get the file to the laptop: AirDrop or Files on iPhone, USB or

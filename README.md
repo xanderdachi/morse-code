@@ -43,13 +43,11 @@ hold both. This is how most modern operators actually key. The speed is chosen i
 rather than earned from your own hand, which is why iambic runs are scored in their own
 division and never ranked against hand-timed ones.
 
-**The iambic keyer is written and tested, and is not enabled for launch.** It runs away under
-CPU load — see *Testing* for the numbers — so it sits behind `IAMBIC_ENABLED` in
-`src/lib/features.js`, currently `false`. While that flag is off there is no keyer control in
-settings at all, and anyone who had the mode selected before the flag flipped is moved back to
-the manual pad when their progress loads, with their chosen speed kept for when it returns.
-Nothing is deleted: the keyer, its tests and the pad's element pulse are all still in the tree,
-and turning the flag on restores the controls.
+The keyer is **opt-in**: the pad stays manual until you turn it on in settings, and its speed
+runs from **5 to 30 WPM**. 30 is the ceiling rather than 40 because the keyer's one serious
+failure — running away under CPU load, described in *Testing* — was worst at the top of the
+range, where an element period is shortest against the lag a loaded phone adds. Above 30 the
+margin for a device falling behind is thinner than the mode is worth.
 
 ### Anchored decoding
 
@@ -367,22 +365,52 @@ zero drops.** That measurement comes from `scripts/measure/browser-pipeline.mjs`
 drives a real production build in headless Chrome over CDP and compares every event it
 dispatched against what the engine actually recorded. Those two modes can be trusted.
 
-**The iambic keyer has a known runaway under CPU throttling, and is not enabled for launch.**
-At 35 WPM with 4x throttling it sent **3,682 extra elements, with lag reaching 42 seconds** — a
-burst it never recovers from, which in a run means a cascade of wrong letters the operator
-cannot key their way out of. A mid-range phone under load reaches this, so the keyer ships off
-rather than late: `IAMBIC_ENABLED` in `src/lib/features.js` is `false`, and that flag is the
-only thing standing between the code and the player.
+**The iambic keyer ran away under CPU throttling, and that is fixed.** At 35 WPM with 4x
+throttling it sent **3,682 extra elements, with lag reaching 42 seconds** — a burst it never
+recovered from, which in a run meant a cascade of wrong letters the operator could not key their
+way out of. The cause was the emission loop trusting its own schedule: it kept generating
+elements for a paddle the operator had already released, because the release was sitting in the
+event queue behind a busy main thread, and each extra element made the next decode slower, so
+the burst accelerated instead of settling.
 
-`npm run build` plus `node scripts/measure/browser-pipeline.mjs run --iambic-load` reproduces
-it, sweeping 15 / 25 / 35 WPM against 1x, 4x and 6x throttling and failing any run that sends
-five or more extra elements. That sweep must pass at every speed and throttle — not just at 1x
-— before the flag goes back to `true`. This is a real open bug, not a caveat.
+Three changes closed it, all in `src/hooks/useMorseInput.js`:
 
-The straight key and the manual pad do not share the code path, which is why they are
-unaffected and why the flag is enough. The keyer's own unit tests still run on every `npm test`;
-the tests that drive its settings controls skip themselves while the flag is false and come
-back the moment it is true, so the feature cannot rot while it is parked.
+- **The keyer's decisions trail the clock** by the largest lag paddle events have shown lately,
+  up to 500 ms, so a release stamped before a decision gets the chance to arrive first.
+- **A stall guard.** An element due more than one element period before the keyer reaches it is
+  never sent: the page is behind, a release may still be queued, and sending would be guessing.
+  The keyer lets go of both paddles, drops any queued dot memory rather than flushing it stale,
+  and records a `keyer-stall` anomaly. The results modal reports it in plain words, next to the
+  bounce and hold-repeat lines, so a letter that came out short reads as the keyer giving up
+  rather than as the app misreading the operator.
+- **A hard cap of 8 elements on any single hold.** No Morse character is longer than 6 elements,
+  so a hold past 8 is never intentional, whatever the timing says.
+
+The **speed ceiling came down from 40 to 30 WPM** at the same time (`KEYER_WPM` in
+`src/lib/progress.js`), for the reason given under *The iambic keyer* above: the fastest speeds
+have the least margin against a loaded device. A stored speed above 30 — a 40 chosen before the
+ceiling moved — is clamped down on load, so it never survives as a value the slider cannot reach.
+
+Two things check it. `npm test` drives the guard in a simulated stall: one tap per element with
+the main thread going away for long blocks, at 15 / 25 / 30 WPM against a thread 1x, 4x and 6x
+behind, and every combination must stay under five extra elements. (With the guard removed, that
+same test reaches 42 elements for 20 taps.) `node scripts/measure/browser-pipeline.mjs run
+--iambic-load` is the real thing: a production build in headless Chrome at the same speeds
+against 1x, 4x and 6x CPU throttling, keyboard and touch, failing any run that sends five or more
+extra elements or fails to complete. It must pass at every speed and throttle, not just at 1x,
+after any change to the emission loop.
+
+**That sweep now passes: 18 runs, 0 extra elements in 17 of them.** The one exception is touch at
+15 WPM and 1x, which sent 3 extra and missed 2 — dispatch noise in the harness at the speed where
+its own touch events are furthest apart, not the keyer falling behind. The runs that matter most
+are the loaded ones: at 25 WPM / 6x the page's input lag p99 reached **4.79 seconds**, and at
+30 WPM / 4x **2.27 seconds**, with **zero** extra elements in both. That is the same class of lag
+that used to produce the 3,682-element burst.
+
+`IAMBIC_ENABLED` in `src/lib/features.js` stays as the kill switch, now `true`. Turned off, it
+removes the settings controls and migrates anyone stored in the mode back to the manual pad,
+keeping their speed. The straight key and the manual pad never shared the code path, which is
+why they were unaffected throughout.
 
 `scripts/measure/real-device-test.md` is a manual checklist for one Android phone and one
 iPhone, covering the things no headless browser can tell you: whether the sidetone survives

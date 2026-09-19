@@ -3,7 +3,7 @@
 //   node scripts/measure/browser-pipeline.mjs run [results.jsonl] [--quick] [--iambic-load]
 //   node scripts/measure/browser-pipeline.mjs report [results.jsonl]
 //
-// --iambic-load runs only the iambic keyer under CPU load (keyboard and touch, 15 / 25 / 35 WPM, 1x / 4x / 6x)
+// --iambic-load runs only the iambic keyer under CPU load (keyboard and touch, 15 / 25 / 30 WPM, 1x / 4x / 6x)
 // and exits non-zero if any run sends MAX_EXTRAS or more extra elements, or fails to run.
 //
 // Needs puppeteer-core, which the project doesn't depend on: set PUPPETEER_FROM to a directory whose
@@ -34,7 +34,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { fallbackPassages } from '../../src/lib/passages.js'
-import { STORAGE_KEY } from '../../src/lib/progress.js'
+import { KEYER_WPM, STORAGE_KEY } from '../../src/lib/progress.js'
 import { normalize, toMorse } from '../../src/morse/alphabet.js'
 import { unitMsForWpm } from '../../src/morse/units.js'
 
@@ -47,8 +47,11 @@ const OUT = outArg ?? path.join(os.tmpdir(), 'morse-pipeline.jsonl')
 
 const SPEEDS = [8, 15, 25, 35, 45]
 const THROTTLES = [1, 4, 6]
-const IAMBIC_MAX_WPM = 40
-const ELEMENTS = QUICK ? { 8: 12, 15: 20, 25: 30, 35: 30, 45: 30 } : { 8: 50, 15: 80, 25: 110, 35: 130, 45: 150 }
+const IAMBIC_MAX_WPM = KEYER_WPM.max // the ceiling the app itself enforces: a faster job is run at it
+const IAMBIC_LOAD_SPEEDS = [15, 25, IAMBIC_MAX_WPM]
+const ELEMENTS = QUICK ? { 8: 12, 15: 20, 25: 30, 30: 30, 35: 30, 45: 30 } : { 8: 50, 15: 80, 25: 110, 30: 120, 35: 130, 45: 150 }
+// A speed the table doesn't list keys the same number of elements as the fast end, rather than the whole passage.
+const elementsFor = wpm => ELEMENTS[wpm] ?? (QUICK ? 30 : 130)
 const EDGE_MS = 8 // iambic edge release: this long before the keyer's decision
 const SPIN_MS = 4 // wait out the last stretch before each event in a busy loop: timers alone run late
 const EXPLICIT_SEND_AFTER_MS = 2 // explicit stamps are sent this long after their time, so they are never in the future
@@ -80,7 +83,7 @@ async function run() {
   const jobs = []
   if (IAMBIC_LOAD) {
     for (const profile of ['keyboard', 'touch']) {
-      for (const wpm of [15, 25, 35]) for (const throttle of THROTTLES) jobs.push({ mode: 'iambic', profile, wpm, throttle, stamping: 'explicit', release: 'comfortable' })
+      for (const wpm of IAMBIC_LOAD_SPEEDS) for (const throttle of THROTTLES) jobs.push({ mode: 'iambic', profile, wpm, throttle, stamping: 'explicit', release: 'comfortable' })
     }
   }
   const matrix = IAMBIC_LOAD ? [] : [
@@ -97,7 +100,7 @@ async function run() {
   }
   if (!IAMBIC_LOAD) {
     for (const profile of ['keyboard', 'touch']) {
-      for (const wpm of [15, 25, 40]) for (const throttle of THROTTLES) jobs.push({ mode: 'iambic', profile, wpm, throttle, stamping: 'explicit', release: 'edge' })
+      for (const wpm of IAMBIC_LOAD_SPEEDS) for (const throttle of THROTTLES) jobs.push({ mode: 'iambic', profile, wpm, throttle, stamping: 'explicit', release: 'edge' })
     }
     for (const profile of ['keyboard', 'touch']) {
       for (const wpm of [8, 25, 45]) for (const throttle of [1, 6]) jobs.push({ mode: 'key', profile, wpm, throttle, stamping: 'arrival', release: 'comfortable' })
@@ -353,7 +356,7 @@ async function runJob(browser, origin, job) {
 
     const wpm = job.mode === 'iambic' ? Math.min(job.wpm, IAMBIC_MAX_WPM) : job.wpm
     const u = unitMsForWpm(wpm)
-    const plan = planFor({ wpm, elements: ELEMENTS[job.wpm] })
+    const plan = planFor({ wpm, elements: elementsFor(job.wpm) })
     const events = []
     for (const [index, element] of plan.entries()) {
       const releaseAt =
@@ -609,7 +612,7 @@ function report(file) {
   for (const row of ok) row.metrics = analyze(row)
   const view = (row, extra = {}) => ({
     input: `${row.mode === 'iambic' ? `iambic ${row.release}` : row.mode}/${row.profile}`,
-    wpm: row.mode === 'iambic' && row.wpm > IAMBIC_MAX_WPM ? `${row.wpm}->40` : row.wpm,
+    wpm: row.mode === 'iambic' && row.wpm > IAMBIC_MAX_WPM ? `${row.wpm}->${IAMBIC_MAX_WPM}` : row.wpm,
     cpu: `${row.throttle}x`,
     n: row.metrics.presses,
     'press mean': row.metrics.pressMean,

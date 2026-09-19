@@ -565,11 +565,25 @@ describe('iambic keyer settings', () => {
     expect(usesIambic({ ...defaultProgress(), inputMode: 'pad' })).toBe(false)
   })
 
-  it('clamps a stored speed to 5–40 WPM and ignores a mode it does not know', () => {
-    const { defaultProgress, setKeyerMode, setKeyerWpm } = progressModule
+  it('clamps a stored speed to 5–30 WPM and ignores a mode it does not know', () => {
+    const { defaultProgress, setKeyerMode, setKeyerWpm, KEYER_WPM } = progressModule
+    expect(KEYER_WPM).toMatchObject({ min: 5, max: 30 })
     expect(setKeyerWpm(defaultProgress(), 2).keyerWpm).toBe(5)
-    expect(setKeyerWpm(defaultProgress(), 90).keyerWpm).toBe(40)
+    expect(setKeyerWpm(defaultProgress(), 90).keyerWpm).toBe(30)
     expect(setKeyerMode(defaultProgress(), 'bug').keyerMode).toBe('manual')
+  })
+
+  // The ceiling came down from 40 to 30 with the runaway fix: a speed chosen under the old range
+  // must not survive as one the slider cannot reach.
+  it('migrates a stored 40 WPM down to the 30 WPM ceiling on load', () => {
+    vi.stubGlobal('localStorage', new MemoryStorage())
+    const { STORAGE_KEY, loadProgress, saveProgress } = progressModule
+    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify({ inputMode: 'pad', keyerMode: 'iambic', keyerWpm: 40 }))
+
+    expect(loadProgress().keyerWpm).toBe(30)
+    // And the migration is written back, so the 40 is gone for good once anything saves.
+    saveProgress(loadProgress())
+    expect(JSON.parse(globalThis.localStorage.getItem(STORAGE_KEY)).keyerWpm).toBe(30)
   })
 
   // What persisting the mode does depends on the launch flag, so each state gets its own test.
@@ -597,7 +611,7 @@ describe('iambic keyer settings', () => {
     vi.stubGlobal('localStorage', new MemoryStorage())
     const { STORAGE_KEY, defaultProgress, setKeyerMode, saveProgress } = progressModule
     // Even handed 'iambic' directly, nothing persists a mode the player cannot leave.
-    saveProgress(setKeyerMode({ ...defaultProgress(), inputMode: 'pad', keyerWpm: 31 }, 'iambic'))
-    expect(JSON.parse(globalThis.localStorage.getItem(STORAGE_KEY))).toMatchObject({ keyerMode: 'manual', keyerWpm: 31 })
+    saveProgress(setKeyerMode({ ...defaultProgress(), inputMode: 'pad', keyerWpm: 27 }, 'iambic'))
+    expect(JSON.parse(globalThis.localStorage.getItem(STORAGE_KEY))).toMatchObject({ keyerMode: 'manual', keyerWpm: 27 })
   })
 })

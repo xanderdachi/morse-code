@@ -47,8 +47,10 @@ export default function SettingsModal({
         </div>
 
         {/* The keyer belongs to the pad; the straight key always reads real presses. The whole
-            section goes while IAMBIC_ENABLED is false: with one mode left there is no choice to
-            offer, and a lone disabled control only raises the question of what it would have done. */}
+            section goes if IAMBIC_ENABLED is ever turned back off: with one mode left there is no
+            choice to offer, and a lone disabled control only raises the question of what it would
+            have done — and with no control there is no way out of the mode, which is why loading
+            progress migrates a stored 'iambic' to 'manual' while the flag is off. */}
         {IAMBIC_ENABLED && mode === 'pad' && (
           <div className="flex flex-col gap-2">
             <span className="text-[11px] font-bold uppercase tracking-[.1em] text-ink-soft">Pad keyer</span>
@@ -63,7 +65,7 @@ export default function SettingsModal({
             />
             <p className="text-[13px] font-medium leading-[1.5] text-ink-soft">
               {keyerMode === 'iambic'
-                ? 'Tap once for each dot or dash, and the keyer times it perfectly. Hold a pad only to repeat it: every element period it stays down sends another. Hold both to alternate. Iambic runs are ranked on their own.'
+                ? 'Tap once for each dot or dash, and the keyer times it perfectly. Hold a pad only to repeat it: every element period it stays down sends another. Hold both to alternate. Anything from 5 to 30 wpm, and iambic runs are ranked on their own.'
                 : 'Each tap on the dot or dash pad sends one element.'}
             </p>
             {keyerMode === 'iambic' && (

@@ -379,6 +379,21 @@ describe('iambic pad', () => {
       expect(ofType(run, 'keyer-stall')).toEqual([expect.objectContaining({ t: 10_240 })])
     })
 
+    // The other half of that rule: with the page keeping up, memory is not stale and still goes out.
+    it('sends dot memory as exactly one dot when nothing stalls, and records no stall', () => {
+      const { dot, dash } = setupIambic()
+      down(dash, 1, 10_000) // a dash 10_000 to 10_180; its period ends at 10_240
+      down(dot, 2, 10_050) // the dot paddle tapped mid-dash: dot memory
+      up(dot, 2, 10_070)
+      up(dash, 1, 10_100)
+      clock.run(20 * u)
+      const run = finishRun()
+      expect(run.marks.map(mark => mark.fixedSymbol).join('')).toBe('-.')
+      expect(run.marks[1].start).toBe(10_240) // at the end of the dash's space, not before and not late
+      expect(input.pulses).toEqual({ '.': 1, '-': 1 })
+      expect(ofType(run, 'keyer-stall')).toEqual([])
+    })
+
     it('still sends the element a late press starts, at its stamp, and guesses no repeats while its release is on the way', () => {
       const { dot } = setupIambic()
       clock.now = 10_400
@@ -435,6 +450,69 @@ describe('iambic pad', () => {
       expect(ofType(run, 'hold-repeat')).toEqual([{ type: 'hold-repeat', t: 10_000, durationMs: 960, elements: 8, periodMs: 120, capped: true }])
       expect(ofType(run, 'keyer-stall')).toEqual([])
     })
+
+    // The runaway itself, in the shape that caused it: one tap per element while the main thread runs
+    // late, which is what CPU throttling does to a phone. Extra elements are marks the operator never
+    // asked for, and five in a run is the failure the browser sweep fails on
+    // (scripts/measure/browser-pipeline.mjs run --iambic-load, which drives a real build in headless
+    // Chrome at the same speeds and throttles). Here the load is simulated, so the guard itself is
+    // covered on every `npm test` rather than only in the sweep.
+    const TAPS = [...'.-..-.-...--..-.-...'] // 20 elements, dots and dashes mixed
+
+    /**
+     * Tap each of TAPS once with the main thread `factor` times slower: it works in blocks, so timers
+     * fire up to a block late and each event waits out the block it arrived in, still stamped when the
+     * operator actually pressed. Every sixth press is followed by a long block, the kind a loaded phone
+     * really produces. Each press is released half an element in, well before the keyer's next
+     * decision, so a keyer that never guesses sends exactly one element per tap.
+     */
+    function tapUnderLoad(keys, { wpm, factor }) {
+      const unit = unitMsForWpm(wpm)
+      const blockMs = 4 * factor // ordinary work: timers run this late and input waits behind them
+      const hiccupMs = 300 * factor // and now and then the thread goes away for much longer
+      const queue = []
+      let at = clock.now
+      for (const [i, symbol] of TAPS.entries()) {
+        const length = (symbol === '.' ? 1 : 3) * unit
+        queue.push({ type: 'down', symbol, pointerId: i + 1, stamp: at, tap: i })
+        queue.push({ type: 'up', symbol, pointerId: i + 1, stamp: at + length / 2, tap: i })
+        at += length + unit
+      }
+      const endAt = at + 20 * unit
+      let next = 0
+      while (clock.now < endAt) {
+        clock.wait(blockMs) // busy for blockMs: the clock jumps and every timer due in it runs at once
+        let hiccup = false
+        while (next < queue.length && queue[next].stamp <= clock.now) {
+          const event = queue[next++]
+          const key = event.symbol === '.' ? keys.dot : keys.dash
+          ;(event.type === 'down' ? lateDown : lateUp)(key, event.pointerId, event.stamp)
+          // Every sixth press is followed by a long block, so its release is stamped inside one: the
+          // keyer's timer then fires with the release still queued, which is what ran it away.
+          if (event.type === 'down' && event.tap % 6 === 5) hiccup = true
+        }
+        if (hiccup) clock.wait(hiccupMs)
+      }
+    }
+
+    for (const wpm of [15, 25, 30]) {
+      for (const factor of [1, 4, 6]) {
+        it(`sends fewer than 5 extra elements at ${wpm} WPM with the page ${factor}x behind`, () => {
+          vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+          const keys = setup({ mode: 'pad', keyerMode: 'iambic', keyerWpm: wpm, unitMs: unitMsForWpm(wpm) })
+          tapUnderLoad(keys, { wpm, factor })
+          const run = finishRun()
+          // Under load the guard may send fewer elements than were tapped, which is the point of it:
+          // it stops rather than guessing. What it must never do is send more. Without the guard this
+          // run reaches 42 elements for 20 taps.
+          expect(run.marks.length - TAPS.length).toBeLessThan(5)
+          expect(run.marks.length).toBeGreaterThan(TAPS.length / 2)
+          // And with the page this far behind it must say so, rather than quietly sending short: a
+          // run with no stall recorded here would mean this test had stopped exercising the guard.
+          if (factor > 1) expect(ofType(run, 'keyer-stall').length).toBeGreaterThan(0)
+        })
+      }
+    }
   })
 
   it('pulses once per generated element, never for the paddle press itself', () => {

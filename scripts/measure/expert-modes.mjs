@@ -7,7 +7,7 @@
 //   runaway  a burst that never recovers: the passage's last 15 letters are still wrong
 //            somewhere (perturbations here end well before that)
 
-import { leniencyFor } from '../../src/lib/progress.js'
+import { KEYER_WPM, leniencyFor } from '../../src/lib/progress.js'
 import { normalize, toMorse } from '../../src/morse/alphabet.js'
 import { grade } from '../../src/morse/grade.js'
 import { createIambicKeyer } from '../../src/morse/iambic.js'
@@ -153,12 +153,12 @@ for (const jitter of [0.1, 0.2]) {
   )
 }
 
-console.log('\n6. IAMBIC AT 40 WPM (the keyer maximum), PADDLE RELEASES AT THE EDGE OF THE ELEMENT WINDOW')
+console.log(`\n6. IAMBIC AT ${KEYER_WPM.max} WPM (the keyer maximum), PADDLE RELEASES AT THE EDGE OF THE ELEMENT WINDOW`)
 // The keyer decides the next element at the end of each element's space. A paddle still held at that
 // instant sends another element. Here the operator lets go `delta` ms from that instant on a share of elements.
 function iambicEdgeLog({ seed, delta, share }) {
   const random = seededRandom(seed)
-  const wpm = 40
+  const wpm = KEYER_WPM.max
   const u = unitMsForWpm(wpm)
   const keyer = createIambicKeyer({ wpm })
   const events = []
@@ -195,8 +195,9 @@ for (const delta of [-5, -2, -1, 1, 2, 5]) {
     for (let run = 0; run < RUNS; run++) {
       const log = iambicEdgeLog({ seed: 11_000 + run, delta, share })
       const elements = log.filter(event => event.type === 'down').length
-      const decoded = interpret(log, { target: TEXT, errorGapUnits: leniencyFor(1).errorGapUnits, unitMs: unitMsForWpm(40), final: true })
-      const unanchored = interpret(log, { target: TEXT, anchored: false, errorGapUnits: leniencyFor(5).errorGapUnits, unitMs: unitMsForWpm(40), final: true })
+      const unitMs = unitMsForWpm(KEYER_WPM.max)
+      const decoded = interpret(log, { target: TEXT, errorGapUnits: leniencyFor(1).errorGapUnits, unitMs, final: true })
+      const unanchored = interpret(log, { target: TEXT, anchored: false, errorGapUnits: leniencyFor(5).errorGapUnits, unitMs, final: true })
       results.push({ elements, anchored: profile(decoded.text), unanchored: profile(unanchored.text) })
     }
     const expected = [...LETTERS].reduce((n, char) => n + toMorse(char).length, 0)

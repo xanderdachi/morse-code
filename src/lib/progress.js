@@ -11,8 +11,9 @@
 // sidetone is null to follow the device (on with touch controls), or the player's choice.
 // onboardingSeen is set once the first-visit intro has been closed, however it was closed.
 // keyerMode is how the dot/dash pad keys: 'manual' (each tap is an element) or
-// 'iambic' (held paddles generate elements at keyerWpm). While IAMBIC_ENABLED is
-// false, a stored 'iambic' is migrated to 'manual' on load and keyerWpm is kept.
+// 'iambic' (held paddles generate elements at keyerWpm, 5 to 30). While IAMBIC_ENABLED
+// is false, a stored 'iambic' is migrated to 'manual' on load and keyerWpm is kept.
+// A keyerWpm stored above the current ceiling is clamped down to it on load.
 //
 // localStorage can throw (Safari private browsing, blocked site data), so every
 // call is guarded and the latest saved state is also kept in memory: if storage
@@ -57,7 +58,10 @@ export const UNANCHORED_FROM_TIER = Number(Object.keys(LENIENCY).find(tier => LE
 
 export const TOUCH_CONTROL_SETTINGS = ['auto', 'on', 'off']
 export const KEYER_MODES = ['manual', 'iambic']
-export const KEYER_WPM = Object.freeze({ min: 5, max: 40, default: 20 })
+// 30 WPM is the keyer's ceiling, down from 40: the runaway under CPU load was worst at the top
+// of the range, where an element period is shortest against the lag a loaded phone adds. A speed
+// stored above it (a 40 chosen before the ceiling came down) is clamped on load, in sanitize().
+export const KEYER_WPM = Object.freeze({ min: 5, max: 30, default: 20 })
 
 const INPUT_MODE_IDS = ['key', 'pad']
 
@@ -237,7 +241,7 @@ export function setKeyerMode(progress, keyerMode) {
   return KEYER_MODES.includes(keyerMode) ? { ...progress, keyerMode } : progress
 }
 
-/** The iambic keyer's speed, rounded and clamped to 5–40 WPM. */
+/** The iambic keyer's speed, rounded and clamped to 5–30 WPM. */
 export function setKeyerWpm(progress, wpm) {
   return Number.isFinite(wpm) ? { ...progress, keyerWpm: clampWpm(wpm) } : progress
 }
@@ -291,7 +295,9 @@ function sanitize(value) {
     // Progress saved before the intro existed belongs to a returning player, who never needs it.
     onboardingSeen: typeof input.onboardingSeen === 'boolean' ? input.onboardingSeen : true,
     keyerMode: sanitizeKeyerMode(input.keyerMode),
-    // Kept whatever the mode, so the speed a player chose survives the keyer being off.
+    // Kept whatever the mode, so the speed a player chose survives the keyer being off, and
+    // clamped to the current range: a stored 40 from before the ceiling came down becomes 30,
+    // rather than surviving as a speed the slider cannot reach.
     keyerWpm: Number.isFinite(input.keyerWpm) ? clampWpm(input.keyerWpm) : KEYER_WPM.default,
   }
 }
