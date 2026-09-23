@@ -7,6 +7,9 @@
  * Plain canvas 2D — no React, no DOM lookups, no imports — so the caller owns
  * the canvas (and its devicePixelRatio transform) and this stays testable
  * against a stub context.
+ *
+ * The resolved mark is also the link-preview image, public/og-image.png, which
+ * scripts/og-image.mjs draws with this file: rerun it after changing the mark.
  */
 
 /** The page behind the blob; also the colour punched out for the two dots. */
