@@ -1,0 +1,625 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`stress: beginner input degrades gracefully > alternating at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 53.84615384615385,
+  "counts": {
+    "delete": 1,
+    "insert": 3,
+    "match": 28,
+    "substitute": 20,
+  },
+  "review": "I[n>I] a [c>#]e[r>D]t[a>T]i[>M]n k[i>N]n[g>]dom[,>T][>D] i[n>G] a [c>Y]e[r>A]t[a>M]i[n>M] l[a>I]n[d>N], [t>E]h[e>D]re[>A] li[v>U][e>N]d [a>U] T[s>U]a[r>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > alternating at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 46,
+  "counts": {
+    "delete": 0,
+    "insert": 1,
+    "match": 23,
+    "substitute": 26,
+  },
+  "review": "I[n>I] a [c>8][e>D][r>T]t[a>I][i>M][n>T] [k>A][i>A]n[g>N]d[>T]om[,>D] i[n>G] a [c>Y]e[r>A]t[a>M]i[n>M] l[a>I]n[d>N], [t>E]h[e>D]r[e>U] l[i>E]v[e>N]d [a>U] T[s>U]a[r>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > alternating at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 53.84615384615385,
+  "counts": {
+    "delete": 1,
+    "insert": 3,
+    "match": 28,
+    "substitute": 20,
+  },
+  "review": "I[n>I] a [c>#]e[r>D]t[a>T]i[>M]n k[i>N]n[g>]dom[,>T][>D] i[n>G] a [c>Y]e[r>A]t[a>M]i[n>M] l[a>I]n[d>N], [t>E]h[e>D]re[>A] li[v>U][e>N]d [a>U] T[s>U]a[r>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > alternating at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 46,
+  "counts": {
+    "delete": 0,
+    "insert": 1,
+    "match": 23,
+    "substitute": 26,
+  },
+  "review": "I[n>I] a [c>8][e>D][r>T]t[a>I][i>M][n>T] [k>A][i>A]n[g>N]d[>T]om[,>D] i[n>G] a [c>Y]e[r>A]t[a>M]i[n>M] l[a>I]n[d>N], [t>E]h[e>D]r[e>U] l[i>E]v[e>N]d [a>U] T[s>U]a[r>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > consecutive at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 79.59183673469387,
+  "counts": {
+    "delete": 0,
+    "insert": 0,
+    "match": 39,
+    "substitute": 10,
+  },
+  "review": "In a c[e>T][r>S]tain king[d>I][o>G][m>N], in a certain [l>R][a>O][n>G][d>N][,>#] there lived a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > consecutive at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 72.54901960784314,
+  "counts": {
+    "delete": 0,
+    "insert": 2,
+    "match": 37,
+    "substitute": 12,
+  },
+  "review": "In a c[e>T][r>S]tain kin[g>T][d>N][o>I][m>G][>N], in a certain [l>R][a>O][n>G][d>N][,>#] there lived a Tsar[.>+][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > consecutive at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 79.59183673469387,
+  "counts": {
+    "delete": 0,
+    "insert": 0,
+    "match": 39,
+    "substitute": 10,
+  },
+  "review": "In a c[e>T][r>S]tain king[d>I][o>G][m>N], in a certain [l>R][a>O][n>G][d>N][,>#] there lived a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > consecutive at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 72.54901960784314,
+  "counts": {
+    "delete": 0,
+    "insert": 2,
+    "match": 37,
+    "substitute": 12,
+  },
+  "review": "In a c[e>T][r>S]tain kin[g>T][d>N][o>I][m>G][>N], in a certain [l>R][a>O][n>G][d>N][,>#] there lived a Tsar[.>+][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-presses at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 87.75510204081633,
+  "counts": {
+    "delete": 0,
+    "insert": 0,
+    "match": 43,
+    "substitute": 6,
+  },
+  "review": "In a ce[r>G]tain kingdom, in a cert[a>M]in l[a>M]nd, ther[e>T] liv[e>T]d a T[s>D]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-presses at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 80.3921568627451,
+  "counts": {
+    "delete": 0,
+    "insert": 2,
+    "match": 41,
+    "substitute": 8,
+  },
+  "review": "In a ce[r>G]tain kin[g>T][>N]dom, in a cert[a>M]in l[a>M]nd, ther[e>T] liv[e>T]d a T[s>D]ar[.>+][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-presses at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 87.75510204081633,
+  "counts": {
+    "delete": 0,
+    "insert": 0,
+    "match": 43,
+    "substitute": 6,
+  },
+  "review": "In a ce[r>G]tain kingdom, in a cert[a>M]in l[a>M]nd, ther[e>T] liv[e>T]d a T[s>D]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-presses at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 80.3921568627451,
+  "counts": {
+    "delete": 0,
+    "insert": 2,
+    "match": 41,
+    "substitute": 8,
+  },
+  "review": "In a ce[r>G]tain kin[g>T][>N]dom, in a cert[a>M]in l[a>M]nd, ther[e>T] liv[e>T]d a T[s>D]ar[.>+][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-runs at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 90.56603773584905,
+  "counts": {
+    "delete": 1,
+    "insert": 4,
+    "match": 48,
+    "substitute": 0,
+  },
+  "review": "In a certain ki[n>]gdom, in a c[>#][>M]ertain land, there li[>#][>#]ved a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-runs at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 69.0909090909091,
+  "counts": {
+    "delete": 8,
+    "insert": 6,
+    "match": 43,
+    "substitute": 3,
+  },
+  "review": "In [a>] [c>]ertain ki[n>H]gdom, in a c[>O][>#][>M]ert[a>E][>T]in land, there l[i>]ved a Tsar[.>A][>R][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-runs at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 90.56603773584905,
+  "counts": {
+    "delete": 1,
+    "insert": 4,
+    "match": 48,
+    "substitute": 0,
+  },
+  "review": "In a certain ki[n>]gdom, in a c[>#][>M]ertain land, there li[>#][>#]ved a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > long-runs at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 69.0909090909091,
+  "counts": {
+    "delete": 8,
+    "insert": 6,
+    "match": 43,
+    "substitute": 3,
+  },
+  "review": "In [a>] [c>]ertain ki[n>H]gdom, in a c[>O][>#][>M]ert[a>E][>T]in land, there l[i>]ved a Tsar[.>A][>R][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > overflow at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 76.5625,
+  "counts": {
+    "delete": 0,
+    "insert": 15,
+    "match": 49,
+    "substitute": 0,
+  },
+  "review": "In a[>#][>#] certain k[>#]ingdom, i[>#][>H]n a certai[>E][>L][>#]n land, th[>A][>#]ere lived[>#] a Ts[>#]a[>T][>S]r[>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > overflow at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 76.19047619047619,
+  "counts": {
+    "delete": 1,
+    "insert": 14,
+    "match": 49,
+    "substitute": 0,
+  },
+  "review": "In a[>#][>#] certain k[>#][>#]ingdom, i[>Z][>#][>H]n a certai[>E][>L]n land, th[>A][>D][>#]ere lived[>#][>#] a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > overflow at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 76.5625,
+  "counts": {
+    "delete": 0,
+    "insert": 15,
+    "match": 49,
+    "substitute": 0,
+  },
+  "review": "In a[>#][>#] certain k[>#]ingdom, i[>#][>H]n a certai[>E][>L][>#]n land, th[>A][>#]ere lived[>#] a Ts[>#]a[>T][>S]r[>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > overflow at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 76.19047619047619,
+  "counts": {
+    "delete": 1,
+    "insert": 14,
+    "match": 49,
+    "substitute": 0,
+  },
+  "review": "In a[>#][>#] certain k[>#][>#]ingdom, i[>Z][>#][>H]n a certai[>E][>L]n land, th[>A][>D][>#]ere lived[>#][>#] a Tsar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > prosigns at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 81.35593220338983,
+  "counts": {
+    "delete": 0,
+    "insert": 10,
+    "match": 48,
+    "substitute": 1,
+  },
+  "review": "In a [c>#]e[>I][>5][>T][>A]rtain kingdom, in a certain land, there l[>5]i[>L][>I]ved a T[>O][>5]s[>S]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > prosigns at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 61.29032258064516,
+  "counts": {
+    "delete": 6,
+    "insert": 13,
+    "match": 44,
+    "substitute": 5,
+  },
+  "review": "In a [c>T][e>G][>S][>5][>C]rtain kingdom, in a [c>T][>R]ertai[n>T] [l>E][>R][>E]and, there[>R][>H][>I][>I] lived a T[>O][>5]s[>S]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > prosigns at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 81.35593220338983,
+  "counts": {
+    "delete": 0,
+    "insert": 10,
+    "match": 48,
+    "substitute": 1,
+  },
+  "review": "In a [c>#]e[>I][>5][>T][>A]rtain kingdom, in a certain land, there l[>5]i[>L][>I]ved a T[>O][>5]s[>S]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > prosigns at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 61.29032258064516,
+  "counts": {
+    "delete": 6,
+    "insert": 13,
+    "match": 44,
+    "substitute": 5,
+  },
+  "review": "In a [c>T][e>G][>S][>5][>C]rtain kingdom, in a [c>T][>R]ertai[n>T] [l>E][>R][>E]and, there[>R][>H][>I][>I] lived a T[>O][>5]s[>S]ar.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > random-symbols at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 29.82456140350877,
+  "counts": {
+    "delete": 0,
+    "insert": 8,
+    "match": 17,
+    "substitute": 32,
+  },
+  "review": "I[n>#] [a>N] [c>#][e>M]rtai[>=]n [k>L][i>#][n>#][g>V][>S]d[o>S][m>U][,>S][>X][>5] i[>S]n a [c>A][e>Q][>#][>)]r[t>S][a>G]in [l>E][a>#][>U]n[d>T][,>E] th[e>W][r>I]e [l>T][i>T][v>#][e>#][d>E] [a>#] [T>D][s>M][a>I][r>T][.>M]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > random-symbols at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 17.857142857142858,
+  "counts": {
+    "delete": 0,
+    "insert": 7,
+    "match": 10,
+    "substitute": 39,
+  },
+  "review": "[I>E][n>E] [a>#] [c>N][e>O][r>T][t>M][a>E][i>C]n [k>#][i>#][n>#][g>V][d>S][o>#][m>U][,>S][>X][>5] i[n>S][>X] a [c>Q][e>#][r>)][t>#][a>G][>U]i[n>#] [l>I][a>T]n[d>T][,>E] t[h>S]e[r>W][>I]e [l>T][i>T][v>#][>#]e[d>T] [a>G] T[s>I][a>M][r>I][.>T][>M]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > random-symbols at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 29.82456140350877,
+  "counts": {
+    "delete": 0,
+    "insert": 8,
+    "match": 17,
+    "substitute": 32,
+  },
+  "review": "I[n>#] [a>N] [c>#][e>M]rtai[>=]n [k>L][i>#][n>#][g>V][>S]d[o>S][m>U][,>S][>X][>5] i[>S]n a [c>A][e>Q][>#][>)]r[t>S][a>G]in [l>E][a>#][>U]n[d>T][,>E] th[e>W][r>I]e [l>T][i>T][v>#][e>#][d>E] [a>#] [T>D][s>M][a>I][r>T][.>M]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > random-symbols at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 17.857142857142858,
+  "counts": {
+    "delete": 0,
+    "insert": 7,
+    "match": 10,
+    "substitute": 39,
+  },
+  "review": "[I>E][n>E] [a>#] [c>N][e>O][r>T][t>M][a>E][i>C]n [k>#][i>#][n>#][g>V][d>S][o>#][m>U][,>S][>X][>5] i[n>S][>X] a [c>Q][e>#][r>)][t>#][a>G][>U]i[n>#] [l>I][a>T]n[d>T][,>E] t[h>S]e[r>W][>I]e [l>T][i>T][v>#][>#]e[d>T] [a>G] T[s>I][a>M][r>I][.>T][>M]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-20% at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 20.408163265306122,
+  "counts": {
+    "delete": 39,
+    "insert": 0,
+    "match": 10,
+    "substitute": 0,
+  },
+  "review": "In a certain [k>][i>][n>][g>][d>][o>][m>][,>] [i>][n>] [a>] [c>][e>][r>][t>][a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-20% at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 20.408163265306122,
+  "counts": {
+    "delete": 39,
+    "insert": 0,
+    "match": 10,
+    "substitute": 0,
+  },
+  "review": "In a certain [k>][i>][n>][g>][d>][o>][m>][,>] [i>][n>] [a>] [c>][e>][r>][t>][a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-20% at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 20.408163265306122,
+  "counts": {
+    "delete": 39,
+    "insert": 0,
+    "match": 10,
+    "substitute": 0,
+  },
+  "review": "In a certain [k>][i>][n>][g>][d>][o>][m>][,>] [i>][n>] [a>] [c>][e>][r>][t>][a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-20% at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 20.408163265306122,
+  "counts": {
+    "delete": 39,
+    "insert": 0,
+    "match": 10,
+    "substitute": 0,
+  },
+  "review": "In a certain [k>][i>][n>][g>][d>][o>][m>][,>] [i>][n>] [a>] [c>][e>][r>][t>][a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-50% at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 51.02040816326531,
+  "counts": {
+    "delete": 24,
+    "insert": 0,
+    "match": 25,
+    "substitute": 0,
+  },
+  "review": "In a certain kingdom, in a cert[a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-50% at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 48,
+  "counts": {
+    "delete": 24,
+    "insert": 1,
+    "match": 24,
+    "substitute": 1,
+  },
+  "review": "In a certain kin[g>T][>N]dom, in a cert[a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-50% at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 51.02040816326531,
+  "counts": {
+    "delete": 24,
+    "insert": 0,
+    "match": 25,
+    "substitute": 0,
+  },
+  "review": "In a certain kingdom, in a cert[a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-50% at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 48,
+  "counts": {
+    "delete": 24,
+    "insert": 1,
+    "match": 24,
+    "substitute": 1,
+  },
+  "review": "In a certain kin[g>T][>N]dom, in a cert[a>][i>][n>] [l>][a>][n>][d>][,>] [t>][h>][e>][r>][e>] [l>][i>][v>][e>][d>] [a>] [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-90% at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 89.79591836734694,
+  "counts": {
+    "delete": 5,
+    "insert": 0,
+    "match": 44,
+    "substitute": 0,
+  },
+  "review": "In a certain kingdom, in a certain land, there lived a [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-90% at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 86,
+  "counts": {
+    "delete": 5,
+    "insert": 1,
+    "match": 43,
+    "substitute": 1,
+  },
+  "review": "In a certain kin[g>T][>N]dom, in a certain land, there lived a [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-90% at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 89.79591836734694,
+  "counts": {
+    "delete": 5,
+    "insert": 0,
+    "match": 44,
+    "substitute": 0,
+  },
+  "review": "In a certain kingdom, in a certain land, there lived a [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > stops-at-90% at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 86,
+  "counts": {
+    "delete": 5,
+    "insert": 1,
+    "match": 43,
+    "substitute": 1,
+  },
+  "review": "In a certain kin[g>T][>N]dom, in a certain land, there lived a [T>][s>][a>][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > undo-spam at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 46,
+  "counts": {
+    "delete": 17,
+    "insert": 1,
+    "match": 23,
+    "substitute": 9,
+  },
+  "review": "[I>T]n [a>N] [c>]e[r>]t[a>]in [k>E][i>T]n[g>]d[o>#][m>][,>] in a cert[>E]ai[n>] [l>]an[d>W][,>] the[r>][e>] l[i>][v>][e>][d>] a [T>I][s>I][a>I][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > undo-spam at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 66.10169491525424,
+  "counts": {
+    "delete": 0,
+    "insert": 10,
+    "match": 39,
+    "substitute": 10,
+  },
+  "review": "In [a>E][>T] cert[a>E][>T]in ki[n>T][g>E][>T][>N]dom[,>T][>#] in a certai[n>T][>E] land[,>T][>#] there live[d>T][>I] a Tsa[r>E][.>N][>+][>T]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > undo-spam at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 46,
+  "counts": {
+    "delete": 17,
+    "insert": 1,
+    "match": 23,
+    "substitute": 9,
+  },
+  "review": "[I>T]n [a>N] [c>]e[r>]t[a>]in [k>E][i>T]n[g>]d[o>#][m>][,>] in a cert[>E]ai[n>] [l>]an[d>W][,>] the[r>][e>] l[i>][v>][e>][d>] a [T>I][s>I][a>I][r>][.>]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > undo-spam at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 68.96551724137932,
+  "counts": {
+    "delete": 0,
+    "insert": 9,
+    "match": 40,
+    "substitute": 9,
+  },
+  "review": "In [a>E][>T] cert[a>E][>T]in ki[n>T][g>E][>T][>N]dom[,>T][>#] in a certai[n>T][>E] land[,>T][>#] there live[d>T][>I] a Tsa[r>E][>N].",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > wrong-30% at 5 WPM, anchored 1`] = `
+{
+  "accuracy": 71.15384615384616,
+  "counts": {
+    "delete": 1,
+    "insert": 3,
+    "match": 37,
+    "substitute": 11,
+  },
+  "review": "[I>E]n a cert[a>X]in king[d>B]om, [i>D]n a[>T] cer[t>M][a>D]in [l>R]a[n>M]d, th[e>]r[e>T] liv[e>T]d a[>N][>E] Ts[a>T]r.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > wrong-30% at 5 WPM, unanchored 1`] = `
+{
+  "accuracy": 59.25925925925926,
+  "counts": {
+    "delete": 0,
+    "insert": 5,
+    "match": 32,
+    "substitute": 17,
+  },
+  "review": "[I>E]n a cert[a>X]i[n>T][>E] king[d>B]om, [i>D][n>X] [a>T] cer[t>M][a>D]in [l>R]a[n>M]d, t[h>S]er[e>T] liv[>T][>D][>A][>N]ed a [T>A][s>E]a[r>E][.>K]",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > wrong-30% at 35 WPM, anchored 1`] = `
+{
+  "accuracy": 71.15384615384616,
+  "counts": {
+    "delete": 1,
+    "insert": 3,
+    "match": 37,
+    "substitute": 11,
+  },
+  "review": "[I>E]n a cert[a>X]in king[d>B]om, [i>D]n a[>T] cer[t>M][a>D]in [l>R]a[n>M]d, th[e>]r[e>T] liv[e>T]d a[>N][>E] Ts[a>T]r.",
+}
+`;
+
+exports[`stress: beginner input degrades gracefully > wrong-30% at 35 WPM, unanchored 1`] = `
+{
+  "accuracy": 59.25925925925926,
+  "counts": {
+    "delete": 0,
+    "insert": 5,
+    "match": 32,
+    "substitute": 17,
+  },
+  "review": "[I>E]n a cert[a>X]i[n>T][>E] king[d>B]om, [i>D][n>X] [a>T] cer[t>M][a>D]in [l>R]a[n>M]d, t[h>S]er[e>T] liv[>T][>D][>A][>N]ed a [T>A][s>E]a[r>E][.>K]",
+}
+`;

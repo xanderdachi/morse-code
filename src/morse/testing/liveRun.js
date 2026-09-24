@@ -7,13 +7,23 @@ import { normalize } from '../alphabet.js'
 import { createKeyer } from '../keyer.js'
 
 /**
- * Returns { run, finalized, finalizedAt, lastInputAt, lastReleaseAt, observations }.
+ * Returns { run, finalized, finalizedAt, lastInputAt, lastReleaseAt, frames, observations }.
  * lastReleaseAt is the last release the keyer accepted: input after the run ended is discarded.
  *
- * observations, over every live state the app would have rendered:
+ * frames: every live state the app would have rendered, in order, as
+ *   { at, cause, cursor, displayCursor, lettersSent, beamWidth, kinds, tookBack }
+ *   cause     the input just taken ('down', 'up', 'undo', 'letter'), or 'wake' for a deadline
+ *   kinds     each letter's kind so far, by initial: 'mme' is two matches, then an error
+ *   tookBack  the operator has just taken something back: an undo the decoder acts on
+ *             (anchored only), or an error prosign, when there are more of them than ever before
+ *
+ * observations, over those frames:
  *   maxPending        the most marks ever waiting in the letter being decided
- *   maxLettersSent    the largest SENT numerator shown
+ *   maxSent           the largest SENT numerator shown (the display cursor)
  *   targetLetters     its denominator
+ *   displayRewinds    frames where the passage highlight moved back though nothing was taken back
+ *   takeBacksOffCursor take-backs after which the highlight wasn't where the decoder had landed
+ *   displayBehind     frames where the highlight was behind the decoder's cursor
  *   negativeElapsed   live states with a negative sending time
  *   pastDeadlines     wake-ups whose deadline had already passed without resolving (a spinning timer)
  *   inputAfterFinalize inputs that arrived after the run had ended (they are discarded)
@@ -22,20 +32,35 @@ export function playLive(log, { target, anchored = true, errorGapUnits, unitMs, 
   const keyer = createKeyer({ errorGapUnits, target, anchored, unitMs })
   const observations = {
     maxPending: 0,
-    maxLettersSent: 0,
+    maxSent: 0,
     targetLetters: normalize(target).replaceAll(' ', '').length,
+    displayRewinds: 0,
+    takeBacksOffCursor: 0,
+    displayBehind: 0,
     negativeElapsed: 0,
     pastDeadlines: 0,
     inputAfterFinalize: 0,
     wakeUps: 0,
   }
+  const frames = []
+  let prosignsHeard = 0
   let now = log[0]?.t ?? 0
   let finalizedAt = null
 
-  const observe = at => {
+  const observe = (at, cause) => {
     const state = keyer.state(at)
+    const tookBack = (anchored && cause === 'undo') || state.scrubs.length > prosignsHeard
+    prosignsHeard = Math.max(prosignsHeard, state.scrubs.length)
+    const { cursor, displayCursor, lettersSent, beamWidth } = state
+    const kinds = state.letters.map(letter => letter.kind[0]).join('')
+    const previous = frames.at(-1)
+    frames.push({ at, cause, cursor, displayCursor, lettersSent, beamWidth, kinds, tookBack })
+
     observations.maxPending = Math.max(observations.maxPending, pendingMarks(state))
-    observations.maxLettersSent = Math.max(observations.maxLettersSent, state.lettersSent)
+    observations.maxSent = Math.max(observations.maxSent, displayCursor)
+    if (previous && displayCursor < previous.displayCursor && !tookBack) observations.displayRewinds++
+    if (tookBack && displayCursor !== cursor) observations.takeBacksOffCursor++
+    if (displayCursor < cursor) observations.displayBehind++
     if (state.elapsedMs < 0) observations.negativeElapsed++
     return state
   }
@@ -51,7 +76,7 @@ export function playLive(log, { target, anchored = true, errorGapUnits, unitMs, 
       if (now > until) break
       observations.wakeUps++
       if (keyer.tick(now)) finalizedAt = now
-      observe(now)
+      observe(now, 'wake')
     }
     now = Math.max(now, until)
   }
@@ -73,7 +98,7 @@ export function playLive(log, { target, anchored = true, errorGapUnits, unitMs, 
     } else if (event.type === 'undo') keyer.undo(event.t)
     else if (event.type === 'letter') keyer.commitLetter(event.t)
     if (keyer.tick(event.t)) finalizedAt = event.t
-    observe(event.t)
+    observe(event.t, event.type)
   }
 
   const lastInputAt = log.at(-1)?.t ?? now
@@ -85,6 +110,7 @@ export function playLive(log, { target, anchored = true, errorGapUnits, unitMs, 
     finalizedAt,
     lastInputAt,
     lastReleaseAt,
+    frames,
     observations,
   }
 }

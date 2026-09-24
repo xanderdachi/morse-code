@@ -48,8 +48,9 @@ const AUDIO_GESTURES = ['pointerdown', 'pointerup', 'keydown', 'click']
  *   onUpdate     called with the live state whenever it changes
  *   onFinalize   called once with the fixed result when the run ends, however it ended
  *
- * Returns the live state (strip, letters, cursor, remaining, paused, timing for
- * the clock, what's held), `run` (null until the run is finalized, then the
+ * Returns the live state (strip, letters, cursor, displayCursor for the passage
+ * highlight and SENT count, remaining, paused, timing for the clock, what's
+ * held), `run` (null until the run is finalized, then the
  * fixed result, whether silence or finish() ended it), props to spread on the
  * key, pad and end-letter buttons, and undo() / finish() / reset(). Once
  * finalized, all input is discarded until reset().
@@ -668,6 +669,7 @@ function toSnapshot(result, previous, paddles, pulses) {
     tookBack: result.tookBack,
     text: result.text,
     cursor: result.cursor,
+    displayCursor: result.displayCursor,
     complete: result.complete,
     paused: result.paused,
     isKeyDown: result.isKeyDown,

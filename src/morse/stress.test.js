@@ -60,11 +60,19 @@ describe('stress: beginner input degrades gracefully', { timeout: 30_000 }, () =
             }
             expect.soft(result.accuracy).toBeGreaterThanOrEqual(0)
             expect.soft(result.accuracy).toBeLessThanOrEqual(100)
+            // Pinned: what the run shows while live never changes how it grades.
+            expect.soft(gradingOf(result)).toMatchSnapshot()
           }
 
           // SENT never shows more letters than the passage has.
-          expect.soft(observations.maxLettersSent, 'SENT numerator').toBeLessThanOrEqual(observations.targetLetters)
+          expect.soft(observations.maxSent, 'SENT numerator').toBeLessThanOrEqual(observations.targetLetters)
           expect.soft(run.lettersSent).toBeLessThanOrEqual(observations.targetLetters)
+
+          // The passage highlight (and SENT with it) never moves back on the decoder's account, on any
+          // frame: only when the operator takes a letter back, and then to where the decoder landed.
+          expect.soft(observations.displayRewinds, 'frames where the highlight moved back with nothing taken back').toBe(0)
+          expect.soft(observations.takeBacksOffCursor, 'take-backs the highlight did not follow to the cursor').toBe(0)
+          expect.soft(observations.displayBehind, 'frames where the highlight was behind the cursor').toBe(0)
 
           // The letter being decided never holds more symbols than the prosign has.
           expect.soft(observations.maxPending, 'largest buffer').toBeLessThanOrEqual(MAX_BUFFER)
@@ -94,7 +102,7 @@ describe('stress: beginner input degrades gracefully', { timeout: 30_000 }, () =
             endsAfterS: +((live.finalizedAt - live.lastReleaseAt) / 1000).toFixed(1),
             ignoredInputs: observations.inputAfterFinalize,
             accuracy: result ? Math.round(result.accuracy) : null,
-            sent: `${run.lettersSent}/${observations.targetLetters}`,
+            sent: `${Math.min(run.displayCursor, observations.targetLetters)}/${observations.targetLetters}`,
             letters: run.letters.length,
             maxBuffer: observations.maxPending,
             scrubbed: run.scrubbedLetters,
@@ -110,3 +118,12 @@ describe('stress: beginner input degrades gracefully', { timeout: 30_000 }, () =
 afterAll(() => {
   if (summary.length) console.table(summary)
 })
+
+// Accuracy and the character review, exactly as the results modal gets them. The review is the
+// passage's words on one line, with every cell that isn't a plain match written [expected>actual]
+// (a side left empty for a letter missed or extra), so no detail of it is lost.
+function gradingOf({ accuracy, counts, review }) {
+  const cell = ({ op, expected, actual }) =>
+    op === 'match' && actual === expected.toUpperCase() ? expected : `[${expected ?? ''}>${actual ?? ''}]`
+  return { accuracy, counts, review: review.map(word => word.map(cell).join('')).join(' ') }
+}

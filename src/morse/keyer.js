@@ -34,8 +34,10 @@ import { codeUnits } from './units.js'
  *   letters        [{ code, char, markIds, kind }]
  *   text           the letters as a string, no spaces
  *   strip          marks to display, in order: [{ id, symbol, endsLetter }]
- *   cursor         next expected letter in the space-stripped target, never past its end
- *   lettersSent    letters on the wire, never more than the target has: the position to show
+ *   cursor         next expected letter in the space-stripped target, never past its end. It can step
+ *                  back while a letter is being decided; what the app shows is createKeyer's
+ *                  displayCursor, which steps back only when the operator takes a letter back
+ *   lettersSent    letters on the wire, never more than the target has
  *   remaining      letters of the target not yet reached
  *   scrubs         [{ markIds, letter }] for each error prosign, with the letter it took back
  *   scrubbedLetters how many letters prosigns took back
@@ -193,6 +195,11 @@ export function interpret(
  * log (a second 'down' while already down — keyboard auto-repeat, a second
  * finger — is ignored and returns false). Once the run is finalized, every
  * input method returns false and records nothing.
+ *
+ * Every state it returns, live or final, also carries displayCursor: the letter
+ * the passage highlight and the SENT count put the operator at (advanceDisplay).
+ * It is the one thing in a state that depends on the states returned before it,
+ * so a replay of the log doesn't have it. Grading never reads it.
  */
 export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorGapUnits, anchored = true, config = CONFIG } = {}) {
   requireErrorGapUnits(errorGapUnits)
@@ -201,6 +208,15 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
   let keyHeld = false
   const padsHeld = new Set()
   let finalRun = null
+  let display = NOTHING_SHOWN
+
+  // A state on its way to the app, with the display cursor moved on to it.
+  function shown(state) {
+    // Only anchoring acts on undo; unanchored, it is ignored.
+    const undos = options.anchored ? log.filter(event => event.type === 'undo').length : 0
+    display = advanceDisplay(display, state, undos)
+    return { ...state, displayCursor: display.cursor }
+  }
 
   const keyer = {
     get log() {
@@ -219,6 +235,8 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
     /** Change the calibration, target or anchoring. The whole run is re-read with them. */
     configure(next) {
       if (next.unitMs !== undefined) options.unitMs = next.unitMs ?? CONFIG.defaultUnitMs
+      // A place in one passage means nothing in another: the display starts again from the new target's cursor.
+      if (next.target !== undefined && next.target !== options.target) display = NOTHING_SHOWN
       if (next.target !== undefined) options.target = next.target
       if (next.anchored !== undefined) options.anchored = next.anchored
       if (next.errorGapUnits !== undefined) options.errorGapUnits = requireErrorGapUnits(next.errorGapUnits)
@@ -274,7 +292,7 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
 
     /** The live state at `now`, or the fixed result once the run is finalized. */
     state(now) {
-      return finalRun ?? interpret(log, { ...options, now, config })
+      return finalRun ?? shown(interpret(log, { ...options, now, config }))
     },
 
     /**
@@ -294,7 +312,7 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
     update(now) {
       if (finalRun) return finalRun
       const live = interpret(log, { ...options, now, config })
-      return live.finalizeDue ? keyer.finalize(now, live.finalizeReason) : live
+      return live.finalizeDue ? keyer.finalize(now, live.finalizeReason) : shown(live)
     },
 
     /**
@@ -306,7 +324,7 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
       if (finalRun) return finalRun
       keyer.releaseAll(t)
       log.push({ type: 'finish', t })
-      finalRun = { ...interpret(log, { ...options, config }), log: [...log], finishReason: reason }
+      finalRun = { ...shown(interpret(log, { ...options, config })), log: [...log], finishReason: reason }
       return finalRun
     },
 
@@ -320,10 +338,35 @@ export function createKeyer({ unitMs = CONFIG.defaultUnitMs, target = '', errorG
       keyHeld = false
       padsHeld.clear()
       finalRun = null
+      display = NOTHING_SHOWN
     },
   }
 
   return keyer
+}
+
+const NOTHING_SHOWN = Object.freeze({ cursor: 0, undos: 0, prosigns: Object.freeze([]) })
+
+/**
+ * The display cursor, moved on to `state`: where the passage highlight and the
+ * SENT count put the operator. It follows the cursor forward and never back on
+ * its own account. The cursor steps back while a letter is being decided: when
+ * a hypothesis further behind takes the lead, when a letter the silence closed
+ * opens again as the next press starts, when a hard resync lands behind, and
+ * (unanchored) when the timing regroups letters. The display holds through all
+ * of it; the final alignment, not the display, decides what was right.
+ *
+ * The operator taking a letter back does move it back, to wherever the cursor
+ * lands: an undo (`undos` counts those the decoder acted on) or an error prosign
+ * not heard before, known by when its first mark was pressed so that a prosign
+ * the beam reads again isn't taken for another.
+ */
+function advanceDisplay(display, { cursor, scrubs, marks }, undos) {
+  const prosigns = scrubs.map(scrub => marks[scrub.markIds[0]].start)
+  if (undos > display.undos || prosigns.some(start => !display.prosigns.includes(start))) {
+    return { cursor, undos: Math.max(undos, display.undos), prosigns: [...new Set([...display.prosigns, ...prosigns])] }
+  }
+  return cursor > display.cursor ? { ...display, cursor } : display
 }
 
 /**

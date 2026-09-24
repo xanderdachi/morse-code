@@ -6,20 +6,20 @@ import { isSendable } from '../morse/alphabet.js'
 const COMPACT_PANEL = 'max-h-(--passage-room) overflow-y-auto overscroll-contain'
 
 /**
- * The passage, with a cursor on the next letter to send. Only position is
- * shown here; nothing about whether earlier letters were right.
- * Pass passage={null} while passages are loading.
+ * The passage, with a cursor on the next letter to send (the keyer's
+ * displayCursor). Only position is shown here; nothing about whether earlier
+ * letters were right. Pass passage={null} while passages are loading.
  *
  * `compact` is the touch layout: the panel scrolls within the height the page
  * gives it, and follows the cursor unless the reader has scrolled away from it.
  * `idle` (no run under way) takes it back to the top of the passage.
  */
-export default memo(function PassageDisplay({ passage, lettersSent, compact = false, idle = true, ref }) {
+export default memo(function PassageDisplay({ passage, cursor, compact = false, idle = true, ref }) {
   const text = passage?.text ?? ''
   const words = useMemo(() => layoutWords(text), [text])
   const ownRef = useRef(null)
   const panelRef = ref ?? ownRef
-  const cursorRef = useRef(lettersSent)
+  const cursorRef = useRef(cursor)
 
   // A new passage, or a run reset: start from the top. Scrolling ahead to read
   // before keying is left alone, since nothing here changes until a run does.
@@ -30,11 +30,11 @@ export default memo(function PassageDisplay({ passage, lettersSent, compact = fa
 
   useLayoutEffect(() => {
     const from = cursorRef.current
-    cursorRef.current = lettersSent
+    cursorRef.current = cursor
     const panel = panelRef.current
-    // Only forward moves. The count can dip while letters regroup, and that must not move the panel.
-    if (compact && panel && lettersSent > from) followCursor(panel, from)
-  }, [compact, panelRef, lettersSent])
+    // Only forward moves. The cursor steps back only when the operator takes a letter back, and the panel stays put for that.
+    if (compact && panel && cursor > from) followCursor(panel, from)
+  }, [compact, panelRef, cursor])
 
   if (!passage) return <PassageSkeleton compact={compact} ref={panelRef} />
 
@@ -65,8 +65,8 @@ export default memo(function PassageDisplay({ passage, lettersSent, compact = fa
               <span
                 key={c}
                 data-letter={letter === -1 ? undefined : letter}
-                data-cursor={letter === lettersSent || undefined}
-                className={charClass(letter, lettersSent)}
+                data-cursor={letter === cursor || undefined}
+                className={charClass(letter, cursor)}
               >
                 {char}
               </span>
@@ -136,8 +136,8 @@ function layoutWords(text) {
     .map(word => [...word].map(char => ({ char, letter: isSendable(char) ? letter++ : -1 })))
 }
 
-function charClass(letter, lettersSent) {
-  if (letter === lettersSent) return 'rounded-mark bg-primary px-[2px] text-on-primary shadow-cursor'
-  if (letter === -1 || letter < lettersSent) return 'text-ink-soft'
+function charClass(letter, cursor) {
+  if (letter === cursor) return 'rounded-mark bg-primary px-[2px] text-on-primary shadow-cursor'
+  if (letter === -1 || letter < cursor) return 'text-ink-soft'
   return 'text-ink'
 }

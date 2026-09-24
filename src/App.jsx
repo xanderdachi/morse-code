@@ -111,7 +111,7 @@ export default function App() {
     onIgnoredKey: () => setIgnoredPadKeys(count => count + 1),
     onFinalize: run => gradeRun(run),
   })
-  const { lettersSent } = input
+  const { displayCursor } = input
 
   // Load the board whenever the tier changes, reusing the passages chosen on
   // the first visit to this tier. Keep the current passage if it's still on the
@@ -356,7 +356,7 @@ export default function App() {
 
           <main className="flex flex-col gap-[18px]">
             <div className="flex min-w-0 flex-col gap-3.5">
-              <PassageDisplay passage={passage} lettersSent={lettersSent} compact={touch} idle={!runActive} ref={passageRef} />
+              <PassageDisplay passage={passage} cursor={displayCursor} compact={touch} idle={!runActive} ref={passageRef} />
               <RunStats
                 input={input}
                 holding={holding}
@@ -659,7 +659,7 @@ function TookBack({ symbols }) {
 
 // `keyerWpm` is set for the iambic keyer, whose speed is chosen in settings rather than measured from the operator.
 function RunStats({ input, holding, result, targetLetters, keyerWpm }) {
-  const { startedAt, lastEnd, pausedMs, pauseAfterMs, lettersSent, letterUnits } = input
+  const { startedAt, lastEnd, pausedMs, pauseAfterMs, displayCursor, letterUnits } = input
   const running = startedAt !== null && result === null
   const [now, setNow] = useState(() => performance.now())
 
@@ -676,7 +676,8 @@ function RunStats({ input, holding, result, targetLetters, keyerWpm }) {
   const elapsedMs = result ? result.elapsedMs : running ? Math.max(0, now - startedAt - pausedMs - pausingNow) : 0
   const liveWpm = elapsedMs > 1200 ? wordsPerMinute(letterUnits, elapsedMs) : 0
   const wpm = Math.round(result ? result.wpm : liveWpm)
-  const sent = Math.min(lettersSent, targetLetters)
+  // The passage highlight's place, so the count and the highlight always agree.
+  const sent = Math.min(displayCursor, targetLetters)
   const progress = Math.min(100, Math.round((100 * sent) / Math.max(1, targetLetters)))
 
   return (

@@ -226,10 +226,18 @@ export function beginnerMistake(code, random) {
 const randomCode = (random, min, max) =>
   Array.from({ length: min + Math.floor(random() * (max - min + 1)) }, () => SYMBOLS[Math.floor(random() * 2)]).join('')
 
+// 'consecutive': the letters sent wrong, as [first letter, how many in a row]. The passage is sent right in between.
+const BURSTS = [
+  [4, 2],
+  [14, 3],
+  [28, 5],
+]
+
 /** The scenarios beginnerScript() builds, by name. */
 export const BEGINNER_SCENARIOS = [
   'wrong-30%',
   'random-symbols',
+  'consecutive',
   'long-presses',
   'long-runs',
   'overflow',
@@ -276,6 +284,9 @@ export function beginnerScript(text, scenario, { seed = 1 } = {}) {
     switch (scenario) {
       case 'wrong-30%':
         letter(step, random() < 0.3 ? { code: beginnerMistake(step.code, random) } : {})
+        break
+      case 'consecutive':
+        letter(step, BURSTS.some(([from, count]) => index >= from && index < from + count) ? { code: beginnerMistake(step.code, random) } : {})
         break
       case 'alternating':
         letter(step, index % 2 === 1 ? { code: beginnerMistake(step.code, random) } : {})
